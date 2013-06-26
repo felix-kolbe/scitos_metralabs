@@ -1,7 +1,61 @@
 #include "ScitosBase.h"
-#include <iostream>
 
-ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[]) {
+
+//	FEATURE_BOOL = 0,  /**< A boolean feature. */
+//	FEATURE_INT,       /**< A integer feature. */
+//	FEATURE_FLOAT,     /**< A float feature. */
+//	FEATURE_STRING     /**< A string feature. */
+
+template<>
+void ScitosBase::setFeature<bool>(std::string name, bool value) {
+	robot_->setFeatureBool(name, value);
+}
+template<>
+void ScitosBase::setFeature<int>(std::string name, int value) {
+	robot_->setFeatureInt(name, value);
+}
+template<>
+void ScitosBase::setFeature<float>(std::string name, float value) {
+	robot_->setFeatureFloat(name, value);
+}
+template<>
+void ScitosBase::setFeature<std::string>(std::string name, std::string value) {
+	robot_->setFeatureString(name, value);
+}
+
+
+template<>
+bool ScitosBase::getFeature(std::string name) {
+	bool value;
+	robot_->getFeatureBool(name, value);
+	return value;
+}
+template<>
+int ScitosBase::getFeature(std::string name) {
+	int value;
+	robot_->getFeatureInt(name, value);
+	return value;
+}
+template<>
+float ScitosBase::getFeature(std::string name) {
+	float value;
+	robot_->getFeatureFloat(name, value);
+	return value;
+}
+template<>
+std::string ScitosBase::getFeature(std::string name) {
+	MString value;
+	robot_->getFeatureString(name, value);
+	return value;
+}
+
+
+
+ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::NodeHandle& nh) :
+	node_handle_(nh),
+	dynamic_reconfigure_server_(dynamic_reconfigure_mutex_),
+	sonar_is_requested_(false)
+{
 	command_v_ = 0;
 	command_w_ = 0;
 	odom_x_ = 0;
@@ -159,6 +213,21 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[]) {
 		exit(-1);
 	}
 
+
+	///////////////////////////////////////////////////////////////////////////
+	// Activate ROS interface
+
+	odom_publisher_ = node_handle_.advertise<nav_msgs::Odometry>("/odom", 20);
+	sonar_publisher_ = node_handle_.advertise<sensor_msgs::Range>("/sonar", 50);
+	bumper_publisher_ = node_handle_.advertise<metralabs_ros::ScitosG5Bumper>("/bumper", 20);
+
+	cmd_vel_subscriber_ = node_handle_.subscribe("/cmd_vel", 1, &ScitosBase::driveCommandCallback, this);
+	bumper_reset_subscriber_ = node_handle_.subscribe("/bumper_reset", 1, &ScitosBase::bumperResetCallback, this);
+
+	// init automatic sonar de/activatior
+	boost::thread(&ScitosBase::checkSubscribersLoop, this, ros::Rate(1));
+
+
 	///////////////////////////////////////////////////////////////////////////
 	// Activation
 
@@ -174,19 +243,49 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[]) {
 		fprintf(stderr, "FATAL: Failed to start the robot system. Code: %s\n", getErrorString(tErr).c_str());
 		exit(-1);
 	}
+
+
+	/// intialize diagnostics
+
+	ROS_INFO("Starting diagnostics...");
+
+	diagnostics_publisher_ = node_handle_.advertise<diagnostic_msgs::DiagnosticArray>("/diagnostics", 50);
+	boost::thread(&ScitosBase::diagnosticsPublishingLoop, this, ros::Rate(2));
+
+
+	/// intialize dynamic_reconfigure
+
+	ROS_INFO("Starting dynamic_reconfigure...");
+
+	// update config to current hardware state
+	metralabs_ros::ScitosG5Config config;
+	getFeatures(config);	// The first time the read config is totally wrong, maybe it's the previous state from rosparam
+	ROS_INFO_STREAM("This is what the first read gives... " << config.EBC1_Enable24V);
+//	getFeatures(config);	// It's no timing issue as far as I tested it. 		TODO fix or proof as stable..
+
+	// mutex needed for dynreconf.updateConfig, see non existent manual, eh I mean source
+	boost::recursive_mutex::scoped_lock dyn_reconf_lock(dynamic_reconfigure_mutex_);
+//	ROS_INFO_STREAM("Updating with current config from hardware... " << config.EBC1_Enable24V);
+	dynamic_reconfigure_server_.updateConfig(config);
+	dyn_reconf_lock.unlock();
+
+	// init reconfigure publisher
+	boost::thread(&ScitosBase::dynamicReconfigureUpdaterLoop, this, boost::ref(dynamic_reconfigure_server_),
+			boost::ref(dynamic_reconfigure_mutex_), ros::Rate(2));
+
+	// init reconfigure callback
+	dynamic_reconfigure::Server<metralabs_ros::ScitosG5Config>::CallbackType dyn_reconf_callback_ptr;
+	dyn_reconf_callback_ptr = boost::bind(&ScitosBase::dynamicReconfigureCallback, this, _1, _2);
+	dynamic_reconfigure_server_.setCallback(dyn_reconf_callback_ptr);
+
 }
 
 
-void ScitosBase::loop() {
+void ScitosBase::setVelocity(double translational_velocity, double rotational_velocity) {
 	velocity_cmd_->writeLock();
-	velocity_cmd_->setVelocity(command_v_, command_w_);
+	velocity_cmd_->setVelocity(translational_velocity, rotational_velocity);
 	velocity_cmd_->writeUnlock(MTime::now());
 	velocity_cmd_->setModified();
-}
-
-void ScitosBase::setVelocity(double v, double w) {
-	command_v_ = v;
-	command_w_ = w;
 }
 
 void ScitosBase::publishOdometry(double x, double y, double theta, double v, double w) {
@@ -219,30 +318,74 @@ void ScitosBase::getSonarConfig(const RangeData::Config*& sonar_config) {
 }
 
 
-void ScitosBase::publishBatteryState(float pVoltage, float pCurrent, int16_t pChargeState,
-		int16_t pRemainingTime, int16_t pChargerStatus) {
-	battery_voltage_ = pVoltage;
-	battery_current_ = pCurrent;
-	battery_charge_state_ = pChargeState;
-	battery_remaining_time_ = pRemainingTime;
-	battery_charger_status_ = pChargerStatus;
+void ScitosBase::publishBatteryState(float voltage, float current, int16_t charge_state,
+		int16_t remaining_time, int16_t charger_status, ros::Time timestamp) {
+	battery_voltage_ = voltage;
+	battery_current_ = current;
+	battery_charge_state_ = charge_state;
+	battery_remaining_time_ = remaining_time;
+	battery_charger_status_ = charger_status;
+	battery_timestamp_ = timestamp;
 }
-void ScitosBase::getBatteryState(float& pVoltage, float& pCurrent, int16_t& pChargeState,
-		int16_t& pRemainingTime, int16_t& pChargerStatus) {
-	pVoltage = battery_voltage_;
-	pCurrent = battery_current_;
-	pChargeState = battery_charge_state_;
-	pRemainingTime = battery_remaining_time_;
-	pChargerStatus = battery_charger_status_;
+void ScitosBase::getBatteryState(float& voltage, float& current, int16_t& charge_state,
+		int16_t& remaining_time, int16_t& charger_status, ros::Time& timestamp) {
+	voltage = battery_voltage_;
+	current = battery_current_;
+	charge_state = battery_charge_state_;
+	remaining_time = battery_remaining_time_;
+	charger_status = battery_charger_status_;
+	timestamp = battery_timestamp_;
 }
 
-void ScitosBase::publishBumperState(bool pBumperPressed, bool pMotorStop) {
-	bumper_pressed_ = pBumperPressed;
-	motor_stop_ = pMotorStop;
+void ScitosBase::publishBumperState(bool bumper_pressed, bool motor_stop) {
+	bumper_pressed_ = bumper_pressed;
+	motor_stop_ = motor_stop;
 }
-void ScitosBase::getBumperState(bool& pBumperPressed, bool& pMotorStop) {
-	pBumperPressed = bumper_pressed_;
-	pMotorStop = motor_stop_;
+void ScitosBase::getBumperState(bool& bumper_pressed, bool& motor_stop) {
+	bumper_pressed = bumper_pressed_;
+	motor_stop = motor_stop_;
+}
+
+void ScitosBase::dynamicReconfigureCallback(metralabs_ros::ScitosG5Config& config, uint32_t level) {
+	// I wrote this macro because I couldn't find a way to read the configs parameters generically,
+	// and with this macro the actual feature name only has to be named once. Improvements welcome.
+	#define MAKRO_SET_FEATURE(NAME)	\
+		ROS_INFO("Setting feature %s to %s", #NAME, config.NAME?"True":"False"); \
+		setFeature(#NAME, config.NAME)
+
+	MAKRO_SET_FEATURE(EBC0_Enable5V);
+	MAKRO_SET_FEATURE(EBC0_Enable12V);
+	MAKRO_SET_FEATURE(EBC0_Enable24V);
+	MAKRO_SET_FEATURE(EBC1_Enable5V);
+	MAKRO_SET_FEATURE(EBC1_Enable12V);
+	MAKRO_SET_FEATURE(EBC1_Enable24V);
+	MAKRO_SET_FEATURE(FreeRunMode);
+	MAKRO_SET_FEATURE(SonarsActive);
+	MAKRO_SET_FEATURE(StatusDisplayKnobLock);
+	MAKRO_SET_FEATURE(StatusDisplayLED);
+
+	ROS_DEBUG("Now reading again: (why is this rubbish?)");	// TODO fix me
+	metralabs_ros::ScitosG5Config config_read;
+	getFeatures(config_read);
+}
+
+void ScitosBase::getFeatures(metralabs_ros::ScitosG5Config& config) {
+	// I wrote this macro because I couldn't find a way to read the configs parameters generically,
+	// and with this macro the actual feature name only has to be named once. Improvements welcome.
+	#define MAKRO_GET_FEATURE(NAME)	\
+		ROS_DEBUG("Current hardware feature %s is %s", #NAME, config.NAME?"True":"False"); \
+		config.NAME = getFeature<typeof(config.NAME)>(std::string(#NAME))
+
+	MAKRO_GET_FEATURE(EBC0_Enable5V);
+	MAKRO_GET_FEATURE(EBC0_Enable12V);
+	MAKRO_GET_FEATURE(EBC0_Enable24V);
+	MAKRO_GET_FEATURE(EBC1_Enable5V);
+	MAKRO_GET_FEATURE(EBC1_Enable12V);
+	MAKRO_GET_FEATURE(EBC1_Enable24V);
+	MAKRO_GET_FEATURE(FreeRunMode);
+	MAKRO_GET_FEATURE(SonarsActive);
+	MAKRO_GET_FEATURE(StatusDisplayKnobLock);
+	MAKRO_GET_FEATURE(StatusDisplayLED);
 }
 
 
@@ -261,53 +404,4 @@ ScitosBase::~ScitosBase() {
 
 	// Delete the application object
 	delete app_;
-}
-
-
-//	FEATURE_BOOL = 0,  /**< A boolean feature. */
-//	FEATURE_INT,       /**< A integer feature. */
-//	FEATURE_FLOAT,     /**< A float feature. */
-//	FEATURE_STRING     /**< A string feature. */
-
-template<>
-void ScitosBase::setFeature<bool>(std::string name, bool value) {
-	robot_->setFeatureBool(name, value);
-}
-template<>
-void ScitosBase::setFeature<int>(std::string name, int value) {
-	robot_->setFeatureInt(name, value);
-}
-template<>
-void ScitosBase::setFeature<float>(std::string name, float value) {
-	robot_->setFeatureFloat(name, value);
-}
-template<>
-void ScitosBase::setFeature<std::string>(std::string name, std::string value) {
-	robot_->setFeatureString(name, value);
-}
-
-
-template<>
-bool ScitosBase::getFeature(std::string name) {
-	bool value;
-	robot_->getFeatureBool(name, value);
-	return value;
-}
-template<>
-int ScitosBase::getFeature(std::string name) {
-	int value;
-	robot_->getFeatureInt(name, value);
-	return value;
-}
-template<>
-float ScitosBase::getFeature(std::string name) {
-	float value;
-	robot_->getFeatureFloat(name, value);
-	return value;
-}
-template<>
-std::string ScitosBase::getFeature(std::string name) {
-	MString value;
-	robot_->getFeatureString(name, value);
-	return value;
 }
