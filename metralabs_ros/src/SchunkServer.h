@@ -35,27 +35,26 @@
 
 class TrajectoryExecuter : private boost::noncopyable {
 public:
-	TrajectoryExecuter(ros::NodeHandle& nh_, std::string action_server_name) :
-		as_(nh_, action_server_name, boost::bind(&TrajectoryExecuter::trajectoryActionCallback, this, _1), false),
-		action_name_(action_server_name)
+	TrajectoryExecuter(ros::NodeHandle& nh) :
+		nh_(nh),
+		as_(NULL)
 	{
 		run_ = false;
 		waiting_ = false;
 		arm_ = NULL;
 	}
 
-	void init(ros::NodeHandle& n, PowerCube* p_arm, std::map<std::string, unsigned int>& nmap) {
+	void init(PowerCube* arm, std::map<std::string, unsigned int>& joints_name_to_number_map) {
 
-		arm_ = p_arm;
-		joints_name_to_number_map_ = nmap;
+		arm_ = arm;
+		joints_name_to_number_map_ = joints_name_to_number_map;
 
-		state_publisher_ = n.advertise<pr2_controllers_msgs::JointTrajectoryControllerState>("state", 1);
+		state_publisher_ = nh_.advertise<pr2_controllers_msgs::JointTrajectoryControllerState>("trajectory_state", 5);
 
 		std::map<std::string, unsigned int>::iterator it;
 		for (it = joints_name_to_number_map_.begin(); it != joints_name_to_number_map_.end(); ++it) {
 			state_msg_.joint_names.push_back(it->first);
 		}
-
 		int num_of_joints = joints_name_to_number_map_.size();
 		state_msg_.desired.positions.resize(num_of_joints);
 		state_msg_.desired.velocities.resize(num_of_joints);
@@ -65,7 +64,15 @@ public:
 		state_msg_.error.positions.resize(num_of_joints);
 		state_msg_.error.velocities.resize(num_of_joints);
 
-		as_.start();
+
+		nh_.param<std::string>("follow_joint_trajectory_action_name", action_name_, "follow_joint_trajectory");
+		as_ = new ActionServerType(nh_, action_name_,
+				boost::bind(&TrajectoryExecuter::trajectoryActionCallback, this, _1), false);
+		as_->start();
+	}
+	~TrajectoryExecuter() {
+
+		delete as_;
 	}
 
 	void main() {
@@ -179,10 +186,10 @@ public:
 		for (unsigned int step_i = 0; step_i < steps; ++step_i) {
 
 			// check that preempt has not been requested by the client
-			if (as_.isPreemptRequested() || !ros::ok()) {
+			if (as_->isPreemptRequested() || !ros::ok()) {
 				ROS_INFO("%s: Preempted", action_name_.c_str());
 				// set the action state to preempted
-				as_.setPreempted();
+				as_->setPreempted();
 				success = false;
 				arm_->normalStopAll();
 				break;
@@ -272,7 +279,7 @@ public:
 			// publish the feedback
 			feedback_.header.stamp = ros::Time::now();
 			feedback_.actual.time_from_start = ros::Time::now() - trajStartTime;
-			as_.publishFeedback(feedback_);
+			as_->publishFeedback(feedback_);
 
 			// sleep until step time has passed
 			ros::Time::sleepUntil(trajStartTime + trajStep.time_from_start);
@@ -301,7 +308,7 @@ public:
 			result_.error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
 			ROS_INFO("%s: Succeeded", action_name_.c_str());
 			// set the action state to succeeded
-			as_.setSucceeded(result_);
+			as_->setSucceeded(result_);
 		}
 	}
 
@@ -309,7 +316,8 @@ public:
 	// from action tutorial
 protected:
 	ros::NodeHandle nh_;
-	actionlib::SimpleActionServer<control_msgs::FollowJointTrajectoryAction> as_;
+	typedef actionlib::SimpleActionServer<control_msgs::FollowJointTrajectoryAction> ActionServerType;
+	ActionServerType* as_;
 	std::string action_name_;
 	// create messages that are used to published feedback/result
 	control_msgs::FollowJointTrajectoryFeedback feedback_;
@@ -384,9 +392,9 @@ private:
 
 class SchunkServer : private boost::noncopyable {
 public:
-	SchunkServer(ros::NodeHandle &node, std::string action_server_name) :
-		node_handle_(node),
-		trajectory_executer_(node, action_server_name)
+	SchunkServer(ros::NodeHandle &nh) :
+		node_handle_(nh),
+		trajectory_executer_(nh)
 	{
 		init();
 	}
@@ -429,17 +437,17 @@ public:
 			joints_name_to_number_map_[joints_list_[i]->name] = i;
 			ROS_INFO("%d is mapping to %s", i, joints_list_[i]->name.c_str());
 		}
-		current_JointState_publisher_ = node_handle_.advertise<sensor_msgs::JointState>("/schunk/position/joint_states", 1);
+		current_JointState_publisher_ = node_handle_.advertise<sensor_msgs::JointState>("/joint_states", 1);
 
 		// Set up the schunk status publisher
-		current_SchunkStatus_publisher_ = node_handle_.advertise<metralabs_ros::SchunkStatus>("/schunk/status", 1);
+		current_SchunkStatus_publisher_ = node_handle_.advertise<metralabs_ros::SchunkStatus>("status", 1);
 		for (uint i = 0; i < joints_list_.size(); ++i) {
 			metralabs_ros::SchunkJointStatus status;
 			status.jointName = joints_list_[i]->name;
 			current_SchunkStatus_.joints.push_back(status);
 		}
 
-		trajectory_executer_.init(node_handle_, &power_cube_, joints_name_to_number_map_);
+		trajectory_executer_.init(&power_cube_, joints_name_to_number_map_);
 
 		ROS_INFO("Starting the trajectory executer thread");
 		trajectory_executer_thread_ = boost::thread(boost::bind(&TrajectoryExecuter::main, &trajectory_executer_));
@@ -455,23 +463,23 @@ public:
 		ROS_INFO("Subscribing schunk topics...");
 
 		// those topics which must be received multiple times (for each joint) got a 10 for their message buffer
-		emergency_subscriber_ = node_handle_.subscribe("/emergency", 1, &SchunkServer::cb_emergency, this);
-		stop_subscriber_ = node_handle_.subscribe("/stop", 1, &SchunkServer::cb_stop, this);
-		first_ref_subscriber_ = node_handle_.subscribe("/firstRef", 1, &SchunkServer::cb_firstRef, this);
-		ack_subscriber_ = node_handle_.subscribe("/ack", 10, &SchunkServer::cb_ack, this);
-		ack_all_subscriber_ = node_handle_.subscribe("/ackAll", 1, &SchunkServer::cb_ackAll, this);
-		ref_subscriber_ = node_handle_.subscribe("/ref", 10, &SchunkServer::cb_ref, this);
-		ref_all_subscriber_ = node_handle_.subscribe("/refAll", 1, &SchunkServer::cb_refAll, this);
-		target_current_subscriber_ = node_handle_.subscribe("/current", 10, &SchunkServer::cb_targetCurrent, this);
-		target_currents_max_all_subscriber_ = node_handle_.subscribe("/currentsMaxAll", 1, &SchunkServer::cb_targetCurrentsMaxAll, this);
-		move_position_subscriber_ = node_handle_.subscribe("/movePosition", 10, &SchunkServer::cb_movePosition, this);
-		move_velocity_subscriber_ = node_handle_.subscribe("/moveVelocity", 10, &SchunkServer::cb_moveVelocity, this);
-		target_velocity_subscriber_ = node_handle_.subscribe("/targetVelocity", 10, &SchunkServer::cb_targetVelocity, this);
-		target_acceleration_subscriber_ = node_handle_.subscribe("/targetAcceleration", 10, &SchunkServer::cb_targetAcceleration, this);
+		emergency_subscriber_ = node_handle_.subscribe("emergency", 1, &SchunkServer::cb_emergency, this);
+		stop_subscriber_ = node_handle_.subscribe("stop", 1, &SchunkServer::cb_stop, this);
+		first_ref_subscriber_ = node_handle_.subscribe("firstRef", 1, &SchunkServer::cb_firstRef, this);
+		ack_subscriber_ = node_handle_.subscribe("ack", 10, &SchunkServer::cb_ack, this);
+		ack_all_subscriber_ = node_handle_.subscribe("ackAll", 1, &SchunkServer::cb_ackAll, this);
+		ref_subscriber_ = node_handle_.subscribe("ref", 10, &SchunkServer::cb_ref, this);
+		ref_all_subscriber_ = node_handle_.subscribe("refAll", 1, &SchunkServer::cb_refAll, this);
+		target_current_subscriber_ = node_handle_.subscribe("current", 10, &SchunkServer::cb_targetCurrent, this);
+		target_currents_max_all_subscriber_ = node_handle_.subscribe("currentsMaxAll", 1, &SchunkServer::cb_targetCurrentsMaxAll, this);
+		move_position_subscriber_ = node_handle_.subscribe("movePosition", 10, &SchunkServer::cb_movePosition, this);
+		move_velocity_subscriber_ = node_handle_.subscribe("moveVelocity", 10, &SchunkServer::cb_moveVelocity, this);
+		target_velocity_subscriber_ = node_handle_.subscribe("targetVelocity", 10, &SchunkServer::cb_targetVelocity, this);
+		target_acceleration_subscriber_ = node_handle_.subscribe("targetAcceleration", 10, &SchunkServer::cb_targetAcceleration, this);
 
-		move_all_position_subscriber_ = node_handle_.subscribe("/schunk/target_pc/joint_states", 1, &SchunkServer::cb_moveAllPosition, this);
-		move_all_velocity_subscriber_ = node_handle_.subscribe("/schunk/target_vc/joint_states", 1, &SchunkServer::cb_moveAllVelocity, this);
-		command_subscriber_ = node_handle_.subscribe("command", 1, &SchunkServer::cb_commandTrajectory, this);
+		move_all_position_subscriber_ = node_handle_.subscribe("move_all_position", 1, &SchunkServer::cb_moveAllPosition, this);
+		move_all_velocity_subscriber_ = node_handle_.subscribe("move_all_velocity", 1, &SchunkServer::cb_moveAllVelocity, this);
+		command_subscriber_ = node_handle_.subscribe("trajectory_command", 1, &SchunkServer::cb_commandTrajectory, this);
 
 		boost::thread(&SchunkServer::publishingLoop, this, ros::Rate(30));
 

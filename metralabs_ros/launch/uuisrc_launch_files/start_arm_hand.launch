@@ -9,9 +9,6 @@
 		
 	<!-- The Arm/Base node -->
   <node name="metralabs_ros" pkg="metralabs_ros" type="ScitosServer" output="screen" machine="Neagh">
-	<remap from="robot_description" to="schunk_description" />
-	<remap from="state" to="/schunk/trajectory/state" />
-	<remap from="command" to="/schunk/trajectory/command" />
   </node>
 
 	<!-- shadowhand -->
@@ -29,7 +26,7 @@
   <!-- Joint Fusion -->
   <node name="joint_fusion" pkg="joint_fusion" type="joint_fusion.py" machine="Neagh">
 	<param name="rate" value="10" />
-	<remap from="source1" to="/schunk/position/joint_states" />
+	<remap from="source1" to="/joint_states" />
 	<remap from="source2" to="/srh/position/joint_states" />
 	<remap from="joint_states" to="/schunk_hand/position/joint_states" />
   </node>
@@ -42,9 +39,9 @@
 
     <!-- Arm/Hand Splitter -->
   <node name="arm_hand_splitter" pkg="arm_hand_splitter" type="arm_hand_splitter.py">
-	<remap from="arm_trajectory_state" to="/schunk/trajectory/state" />
+	<remap from="arm_trajectory_state" to="/schunk/trajectory_state" />
 	<remap from="hand_joint_states" to="/srh/position/joint_states" />
-	<remap from="out_command" to="/schunk/trajectory/command" />
+	<remap from="out_command" to="/schunk/trajectory_command" />
 
 	<remap from="command" to="/arm_hand/trajectory/command" />
 	<remap from="state" to="/arm_hand/trajectory/state" />

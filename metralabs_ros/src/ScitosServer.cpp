@@ -16,19 +16,19 @@
 int main(int argc, char **argv)
 {
 	ros::init(argc, argv, "metralabs_ros");
-	ros::NodeHandle n;
-	ros::NodeHandle n_private("~");
 
-	std::string action_server_name = "schunk/follow_joint_trajectory";
+	ros::NodeHandle nh_private("~");
+	ros::NodeHandle nh_scitos("scitos");
+	ros::NodeHandle nh_schunk("schunk");
 
 
 	/// read parameters
 
 	bool disable_arm;
-	n_private.param("disable_arm", disable_arm, false);
+	nh_private.param("disable_arm", disable_arm, false);
 
 	std::string scitos_config_file;
-	n_private.param<string>("scitos_config_file", scitos_config_file,
+	nh_private.param<string>("scitos_config_file", scitos_config_file,
 			"/opt/MetraLabs/MLRobotic/etc/config/SCITOS-G5_without_Head_config.xml");
 
 	ros::Duration(0.9).sleep(); // wait to let the running me close its scitos connection
@@ -37,7 +37,7 @@ int main(int argc, char **argv)
 	/// initialize robot base & node components
 
 	ROS_INFO("Starting robot base...");
-	ScitosBase base(scitos_config_file.c_str(), argc, argv, n_private);
+	ScitosBase base(scitos_config_file.c_str(), argc, argv, nh_scitos);
 
 	base.setFeature(FEATURE_SONAR, false);
 
@@ -50,7 +50,7 @@ int main(int argc, char **argv)
 	/// intialize robot arm
 
 	ROS_INFO("Starting ros schunk connector...");
-	SchunkServer schunkServer(n, action_server_name);
+	SchunkServer schunkServer(nh_schunk);
 
 
 	/// start main loop
