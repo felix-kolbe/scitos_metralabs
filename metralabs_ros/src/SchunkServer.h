@@ -11,7 +11,6 @@
 #include <tf/transform_broadcaster.h>
 
 #include <std_msgs/Int8.h>
-#include <std_msgs/Bool.h>
 
 #include <metralabs_ros/idAndFloat.h>
 #include <metralabs_ros/SchunkStatus.h>
@@ -495,21 +494,21 @@ private:
 		// those topics which must be received multiple times (for each joint) got a 10 for their message buffer
 		emergency_subscriber_ = node_handle_.subscribe("emergency", 1, &SchunkServer::cb_emergency, this);
 		stop_subscriber_ = node_handle_.subscribe("stop", 1, &SchunkServer::cb_stop, this);
-		first_ref_subscriber_ = node_handle_.subscribe("firstRef", 1, &SchunkServer::cb_firstRef, this);
 		ack_subscriber_ = node_handle_.subscribe("ack", 10, &SchunkServer::cb_ack, this);
-		ack_all_subscriber_ = node_handle_.subscribe("ackAll", 1, &SchunkServer::cb_ackAll, this);
+		ack_all_subscriber_ = node_handle_.subscribe("ack_all", 1, &SchunkServer::cb_ackAll, this);
 		ref_subscriber_ = node_handle_.subscribe("ref", 10, &SchunkServer::cb_ref, this);
-		ref_all_subscriber_ = node_handle_.subscribe("refAll", 1, &SchunkServer::cb_refAll, this);
-		target_current_subscriber_ = node_handle_.subscribe("current", 10, &SchunkServer::cb_targetCurrent, this);
-		target_currents_max_all_subscriber_ = node_handle_.subscribe("currentsMaxAll", 1, &SchunkServer::cb_targetCurrentsMaxAll, this);
-		move_position_subscriber_ = node_handle_.subscribe("movePosition", 10, &SchunkServer::cb_movePosition, this);
-		move_velocity_subscriber_ = node_handle_.subscribe("moveVelocity", 10, &SchunkServer::cb_moveVelocity, this);
-		target_velocity_subscriber_ = node_handle_.subscribe("targetVelocity", 10, &SchunkServer::cb_targetVelocity, this);
-		target_acceleration_subscriber_ = node_handle_.subscribe("targetAcceleration", 10, &SchunkServer::cb_targetAcceleration, this);
+		ref_all_subscriber_ = node_handle_.subscribe("ref_all", 1, &SchunkServer::cb_refAll, this);
 
+		set_velocity_subscriber_ = node_handle_.subscribe("set_velocity", 10, &SchunkServer::cb_setVelocity, this);
+		set_acceleration_subscriber_ = node_handle_.subscribe("set_acceleration", 10, &SchunkServer::cb_setAcceleration, this);
+		set_current_subscriber_ = node_handle_.subscribe("set_current", 10, &SchunkServer::cb_setCurrent, this);
+		set_currents_max_all_subscriber_ = node_handle_.subscribe("set_current_max_all", 1, &SchunkServer::cb_setCurrentsMaxAll, this);
+
+		move_position_subscriber_ = node_handle_.subscribe("move_position", 10, &SchunkServer::cb_movePosition, this);
+		move_velocity_subscriber_ = node_handle_.subscribe("move_velocity", 10, &SchunkServer::cb_moveVelocity, this);
 		move_all_position_subscriber_ = node_handle_.subscribe("move_all_position", 1, &SchunkServer::cb_moveAllPosition, this);
 		move_all_velocity_subscriber_ = node_handle_.subscribe("move_all_velocity", 1, &SchunkServer::cb_moveAllVelocity, this);
-		command_subscriber_ = node_handle_.subscribe("trajectory_command", 1, &SchunkServer::cb_commandTrajectory, this);
+		trajectory_command_subscriber_ = node_handle_.subscribe("trajectory_command", 1, &SchunkServer::cb_commandTrajectory, this);
 
 		boost::thread(&SchunkServer::publishingLoop, this, ros::Rate(30));
 
@@ -517,19 +516,14 @@ private:
 
 	}
 
-	void cb_emergency(const std_msgs::Bool::ConstPtr& dummy) 	{
+	void cb_emergency(const std_msgs::Empty::ConstPtr& dummy) 	{
 		ROS_INFO("emergency");
 		arm_->emergencyStopAll();
 	}
 
-	void cb_stop(const std_msgs::Bool::ConstPtr& dummy) 	{
+	void cb_stop(const std_msgs::Empty::ConstPtr& dummy) 	{
 		ROS_INFO("stop");
 		arm_->normalStopAll();
-	}
-
-	void cb_firstRef(const std_msgs::Bool::ConstPtr& dummy) 	{
-		ROS_INFO("first ref");
-//		arm_->firstRef();    about to be removed
 	}
 
 	void cb_ack(const std_msgs::Int8::ConstPtr& id) 	{
@@ -537,8 +531,8 @@ private:
 		arm_->ackJoint(id->data);
 	}
 
-	void cb_ackAll(const std_msgs::Bool::ConstPtr& dummy) 	{
-		ROS_INFO("cb_ackall");
+	void cb_ackAll(const std_msgs::Empty::ConstPtr& dummy) 	{
+		ROS_INFO("cb_ackAll");
 		arm_->ackAll();
 	}
 
@@ -547,20 +541,32 @@ private:
 		arm_->refJoint(id->data);
 	}
 
-	void cb_refAll(const std_msgs::Bool::ConstPtr& dummy)	{
-		ROS_INFO("cb_refall");
+	void cb_refAll(const std_msgs::Empty::ConstPtr& dummy)	{
+		ROS_INFO("cb_refAll");
 		arm_->refAll();
 	}
 
-	void cb_targetCurrent(const metralabs_ros::idAndFloat::ConstPtr& data)	{
-		ROS_INFO("cb_current: [%d, %f]", data->id, data->value);
+
+	void cb_setVelocity(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+		ROS_INFO("cb_setVelocity: [%d, %f]", data->id, data->value);
+		arm_->setVelocity(data->id, data->value);
+	}
+
+	void cb_setAcceleration(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+		ROS_INFO("cb_setAcceleration: [%d, %f]", data->id, data->value);
+		arm_->setAcceleration(data->id, data->value);
+	}
+
+	void cb_setCurrent(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+		ROS_INFO("cb_setCurrent: [%d, %f]", data->id, data->value);
 		arm_->setCurrent(data->id, data->value);
 	}
 
-	void cb_targetCurrentsMaxAll(const std_msgs::Bool::ConstPtr& dummy)	{
-		ROS_INFO("cb_currentsMax");
+	void cb_setCurrentsMaxAll(const std_msgs::Empty::ConstPtr& dummy)	{
+		ROS_INFO("cb_setCurrentsMaxAll");
 		arm_->setCurrentsToMax();
 	}
+
 
 	void cb_movePosition(const metralabs_ros::idAndFloat::ConstPtr& data)	{
 		ROS_INFO("cb_movePosition: [%d, %f]", data->id, data->value);
@@ -573,16 +579,6 @@ private:
 			arm_->normalStopJoint(data->id);
 		else
 			arm_->moveVelocity(data->id, data->value);
-	}
-
-	void cb_targetVelocity(const metralabs_ros::idAndFloat::ConstPtr& data)	{
-		ROS_INFO("cb_targetVelocity: [%d, %f]", data->id, data->value);
-		arm_->setVelocity(data->id, data->value);
-	}
-
-	void cb_targetAcceleration(const metralabs_ros::idAndFloat::ConstPtr& data)	{
-		ROS_INFO("cb_targetAcceleration: [%d, %f]", data->id, data->value);
-		arm_->setAcceleration(data->id, data->value);
 	}
 
 	void cb_moveAllPosition(const sensor_msgs::JointState::ConstPtr& data) {
@@ -702,16 +698,17 @@ private:
 	ros::Subscriber ack_all_subscriber_;
 	ros::Subscriber ref_subscriber_;
 	ros::Subscriber ref_all_subscriber_;
-	ros::Subscriber target_current_subscriber_;
-	ros::Subscriber target_currents_max_all_subscriber_;
+
+	ros::Subscriber set_velocity_subscriber_;
+	ros::Subscriber set_acceleration_subscriber_;
+	ros::Subscriber set_current_subscriber_;
+	ros::Subscriber set_currents_max_all_subscriber_;
+
 	ros::Subscriber move_position_subscriber_;
 	ros::Subscriber move_velocity_subscriber_;
-	ros::Subscriber target_velocity_subscriber_;
-	ros::Subscriber target_acceleration_subscriber_;
-
 	ros::Subscriber move_all_position_subscriber_;
 	ros::Subscriber move_all_velocity_subscriber_;
-	ros::Subscriber command_subscriber_;
+	ros::Subscriber trajectory_command_subscriber_;
 };
 
 
