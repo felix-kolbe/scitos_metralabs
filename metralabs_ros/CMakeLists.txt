@@ -37,12 +37,11 @@ rosbuild_gensrv()
 #LINK_DIRECTORIES( ${LINK_DIRECTORIES} )
 #rosbuild_add_boost_directories()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
-
-#rosbuild_add_executable(ScitosServer src/ScitosServer.cpp src/PowerCube.cpp src/ScitosBase.cpp src/joint_spline_trajectory_controller.cpp)
-rosbuild_add_executable(ScitosServer src/ScitosServer.cpp src/PowerCube.cpp src/ScitosBase.cpp)
-
 #rosbuild_add_executable(tester src/tester.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
+
+
+rosbuild_add_executable(ScitosServer src/ScitosServer.cpp src/ScitosBase.cpp)
 
 target_link_libraries(ScitosServer MetraLabsBase)
 target_link_libraries(ScitosServer MLRoboticBase)

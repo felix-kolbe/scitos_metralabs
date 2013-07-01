@@ -9,12 +9,22 @@
 #include "SchunkServer.h"
 
 
-#define FEATURE_LASER	( "EBC0_Enable24V" )
-#define FEATURE_ARM		( "EBC1_Enable24V" )
+
+void robotArmThread(ScitosBase& scitos_base, ros::NodeHandle nh_schunk) {
+	ROS_INFO("Starting ros schunk connector...");
+	SchunkServer schunk_server(nh_schunk);
+
+	try {
+		while (nh_schunk.ok())
+			boost::this_thread::sleep(boost::posix_time::minutes(42));
+	}
+	catch(const boost::thread_interrupted&) {
+		ROS_INFO("Robot arm thread was interrupted and returns, stopping the arm interface.");
+	}
+}
 
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
 	ros::init(argc, argv, "metralabs_ros");
 
 	ros::NodeHandle nh_private("~");
@@ -28,7 +38,7 @@ int main(int argc, char **argv)
 	nh_private.param("disable_arm", disable_arm, false);
 
 	std::string scitos_config_file;
-	nh_private.param<string>("scitos_config_file", scitos_config_file,
+	nh_private.param<std::string>("scitos_config_file", scitos_config_file,
 			"/opt/MetraLabs/MLRobotic/etc/config/SCITOS-G5_without_Head_config.xml");
 
 	ros::Duration(0.9).sleep(); // wait to let the running me close its scitos connection
@@ -41,27 +51,28 @@ int main(int argc, char **argv)
 
 	base.setFeature(FEATURE_SONAR, false);
 
-	if(!disable_arm) {
-		ros::Duration(0.5).sleep(); // let ScitosBase connect to robot
-		base.setFeature(FEATURE_ARM, true);
+	boost::thread robot_arm_thread_;
+	if(nh_private.hasParam("robot_arm_class")) {
+		robot_arm_thread_ = boost::thread(robotArmThread, boost::ref(base), boost::ref(nh_schunk));
 	}
-
-
-	/// intialize robot arm
-
-	ROS_INFO("Starting ros schunk connector...");
-	SchunkServer schunkServer(nh_schunk);
 
 
 	/// start main loop
 
 	ROS_INFO("Initializing done, starting loop");
-
 	ros::spin();
 
-	base.setFeature(FEATURE_ARM, false);
+
+	// clean up
+
+	if(robot_arm_thread_.joinable()) {
+		robot_arm_thread_.interrupt();
+		robot_arm_thread_.join();
+	}
+	else
+		ROS_WARN("robot arm thread not joinable, should this happen?");
+
 	base.setFeature(FEATURE_SONAR, false);
 
 	return 0;
 }
-
