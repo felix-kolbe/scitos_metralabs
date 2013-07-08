@@ -40,21 +40,6 @@ public:
 	ScitosBase(const char*, int pArgc, char* pArgv[], ros::NodeHandle& nh);
 	~ScitosBase();
 
-	void publishOdometry(double x, double y, double theta, double v, double w);
-	void getOdometry(double& x, double& y, double& theta, double& v, double& w);
-
-	void publishSonar(std::vector<RangeData::Measurement> measurements);
-	void getSonar(std::vector<RangeData::Measurement>& measurements);
-	void publishSonarConfig(const RangeData::Config* sonar_config);
-	void getSonarConfig(const RangeData::Config*& sonar_config);
-
-	void publishBatteryState(float voltage, float current, int16_t charge_state,
-			int16_t remaining_time, int16_t charger_status, ros::Time timestamp);
-	void getBatteryState(float& voltage, float& current, int16_t& charge_state,
-			int16_t& remaining_time, int16_t& charger_status, ros::Time& timestamp);
-
-	void publishBumperState(bool bumper_pressed, bool motor_stop);
-	void getBumperState(bool& bumper_pressed, bool& motor_stop);
 
 	void setVelocity(double translational_velocity, double rotational_velocity);
 
@@ -74,8 +59,6 @@ public:
 			odometryCallbackHandler();
 		} else if(pData == sonar_data_) {
 			sonarCallbackHandler();
-		} else if(pData == battery_state_data_) {
-			batteryStateCallbackHandler();
 		} else if(pData == bumper_data_) {
 			bumperDataCallbackHandler();
 		}
@@ -92,10 +75,6 @@ private:
 		odometry_data_->getData(pose, velocity, mileage);
 		time = odometry_data_->getTimeStamp();
 		odometry_data_->readUnlock();
-
-		publishOdometry(pose.getX(), pose.getY(), pose.getPhi(),
-					velocity.getVelocityTranslational(),
-					velocity.getVelocityRotational());
 
 		/// The odometry position and velocities of the robot
 		ros::Time odom_time = ros::Time().fromNSec(time.getTimeValue()*1000000);
@@ -141,29 +120,26 @@ private:
 	}
 
 	void sonarCallbackHandler() {
-		// TODO optimize method: full method if-requested and one-time getConfig
+		static const RangeData::Config* sonar_config = NULL;
+
 		sonar_data_->readLock();
-		const RangeData::Vector& sonar_data = sonar_data_->getRangeData();
-		const RangeData::Config* sonar_config = sonar_data_->getConfig();
 		MTime timestamp = odometry_data_->getTimeStamp();
+		const RangeData::Vector& sonar_data = sonar_data_->getRangeData();
+		if (sonar_config == NULL)
+			sonar_config = sonar_data_->getConfig();
 		sonar_data_->readUnlock();
 
 		const std::vector<RangeData::Measurement> measurements = sonar_data;
 		ros::Time sonar_time = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
 
-		publishSonar(measurements);
-		publishSonarConfig(sonar_config);
 
-		if(sonar_is_requested_) {
-			static const RangeData::Config* sonar_config = NULL;
-
-			// load config once
+		if(!sonar_is_requested_) {
+			robot_->setFeatureBool(FEATURE_SONAR, sonar_is_requested_);
+		} else {
 			if (sonar_config == NULL) {
-				getSonarConfig(sonar_config);    // TODO what if nonzero rubbish is read?
-//				std::cout << "sonar_config was NULL and now we read: " << sonar_config << std::endl;
-			}
-			// if config is loaded, proceed..
-			if (sonar_config != NULL) {
+				ROS_WARN_THROTTLE(0.5, "Could not yet read sonar config.");
+			} else {
+				// if config is loaded, proceed..
 				const RangeData::ConfigCircularArc* sonar_config_circular =
 						dynamic_cast<const RangeData::ConfigCircularArc*>(sonar_config);
 
@@ -257,19 +233,6 @@ private:
 		} // if sonar active
 	}
 
-	void batteryStateCallbackHandler() {
-		battery_state_data_->readLock();
-		publishBatteryState(
-				battery_state_data_->getVoltage(),
-				battery_state_data_->getCurrent(),
-				battery_state_data_->getChargeState(),
-				battery_state_data_->getRemainingTime(),
-				battery_state_data_->getChargerStatus(),
-				ros::Time().fromNSec(battery_state_data_->getTimeStamp().getTimeValue()*1000000)
-				);
-		battery_state_data_->readUnlock();
-	}
-
 	void bumperDataCallbackHandler() {
 		bumper_data_->readLock();
 		BumperData::Vector bumper_values = bumper_data_->getBumperData();
@@ -292,8 +255,6 @@ private:
 				motor_stop = true;
 			}
 		}
-
-		publishBumperState(bumper_pressed, motor_stop);
 
 		metralabs_ros::ScitosG5Bumper bumper_msg;
 		bumper_msg.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
@@ -326,7 +287,7 @@ private:
 			/// enable or disable sonar if someone or no one is listening
 			bool sonar_had_been_requested = sonar_is_requested_;
 			sonar_is_requested_ = sonar_publisher_.getNumSubscribers() != 0;
-			// this check allows to override sonar state via dynamic reconfigure
+			// this check allows to override sonar state via dynamic reconfigure and avoids overhead
 			if(sonar_is_requested_ != sonar_had_been_requested) {
 				robot_->setFeatureBool(FEATURE_SONAR, sonar_is_requested_);
 				ROS_INFO_STREAM("Switching sonar feature to: " << (sonar_is_requested_?"true":"false"));
@@ -336,17 +297,19 @@ private:
 	}
 
 	void diagnosticsPublishingLoop(ros::Rate loop_rate) {
+		// send diagnostics message for battery state but with lower frequency
+		// robot itself publishes with 10 Hz into Blackboard
 		while (node_handle_.ok()) {
-			float voltage;
-			float current;
-			int16_t charge_state;
-			int16_t remaining_time;
-			int16_t charger_status;
-			ros::Time timestamp;
-			getBatteryState(voltage, current, charge_state, remaining_time, charger_status, timestamp);
+			battery_state_data_->readLock();
+			float voltage = battery_state_data_->getVoltage();
+			float current = battery_state_data_->getCurrent();
+			int16_t charge_state = battery_state_data_->getChargeState();
+			int16_t remaining_time = battery_state_data_->getRemainingTime();
+			int16_t charger_status= battery_state_data_->getChargerStatus();
+			MTime timestamp = battery_state_data_->getTimeStamp();
+			battery_state_data_->readUnlock();
 
 			diagnostic_msgs::DiagnosticStatus battery_status;
-			battery_status.level = diagnostic_msgs::DiagnosticStatus::OK;
 			battery_status.name = "Battery";
 			battery_status.message = "undefined";
 			battery_status.hardware_id = "0a4fcec0-27ef-497a-93ba-db39808ec1af";
@@ -362,6 +325,8 @@ private:
 				battery_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
 			else if(voltage < VOLTAGE_WARN_LEVEL && charger_status != CHARGER_PLUGGED)
 				battery_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
+			else
+				battery_status.level = diagnostic_msgs::DiagnosticStatus::OK;
 
 			// build text message
 			battery_status.message = "High";
@@ -375,7 +340,7 @@ private:
 			if(voltage >= VOLTAGE_FULL_LEVEL)
 				battery_status.message = "Fully charged";
 
-
+			// set values
 			battery_status.values.resize(5);
 			std::stringstream ss;
 			battery_status.values[0].key = "Voltage";
@@ -402,7 +367,7 @@ private:
 
 			/// combine and publish statii as array
 			diagnostic_msgs::DiagnosticArray diag_array;
-			diag_array.header.stamp = timestamp;
+			diag_array.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
 			diag_array.status.push_back(battery_status);
 			diagnostics_publisher_.publish(diag_array);
 
@@ -453,29 +418,7 @@ private:
 	boost::recursive_mutex dynamic_reconfigure_mutex_;
 	dynamic_reconfigure::Server<metralabs_ros::ScitosG5Config> dynamic_reconfigure_server_;
 
-
-	double odom_x_;
-	double odom_y_;
-	double odom_theta_;
-	double odom_v_;
-	double odom_w_;
-
-	double command_v_;
-	double command_w_;
-
-	std::vector<RangeData::Measurement> range_measurements_;
-	const RangeData::Config* sonar_config_;
 	bool sonar_is_requested_;
-
-	float battery_voltage_;
-	float battery_current_;
-	int16_t battery_charge_state_;
-	int16_t battery_remaining_time_;
-	int16_t battery_charger_status_;
-	ros::Time battery_timestamp_;
-
-	bool bumper_pressed_;
-	bool motor_stop_;
 };
 
 #endif

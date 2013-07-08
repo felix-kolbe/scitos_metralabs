@@ -56,22 +56,6 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	dynamic_reconfigure_server_(dynamic_reconfigure_mutex_),
 	sonar_is_requested_(false)
 {
-	command_v_ = 0;
-	command_w_ = 0;
-	odom_x_ = 0;
-	odom_y_ = 0;
-	odom_theta_ = 0;
-	odom_v_ = 0;
-	odom_w_ = 0;
-
-	battery_voltage_ = 0;
-	battery_current_ = 0;
-	battery_charge_state_ = 0;
-	battery_remaining_time_ = 0;
-	battery_charger_status_ = 0;
-
-	sonar_config_ = NULL;
-
 	using namespace MetraLabs::base;
 	using namespace MetraLabs::robotic::base;
 	using namespace MetraLabs::robotic::robot;
@@ -124,8 +108,13 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	}
 
 	// Pre-Initialize the robot
-	if ((tErr = robot_->preInitializeClient(&tRobotCfg)) != OK) {
-		fprintf(stderr, "FATAL: Failed to pre-initialize the robot. Code: %s\n", getErrorString(tErr).c_str());
+	int tries = 3;
+	while(tries-->0 && (tErr = robot_->preInitializeClient(&tRobotCfg)) != OK) {
+		ROS_WARN("Failed to pre-initialize the robot. Code: %s. Waiting and retrying..", getErrorString(tErr).c_str());
+		sleep(2);
+	}
+	if (tErr != OK) {
+		ROS_FATAL("Failed to pre-initialize the robot. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
@@ -180,7 +169,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 		fprintf(stderr, "FATAL: Failed to get the battery state data from the blackboard! Code: %s\n", getErrorString(tErr).c_str());
 		exit(-1);
 	}
-	battery_state_data_->addCallback(this);
+	// battery_state_data_->addCallback(this);  // replaced with diagnostics thread fetching on demand
 
 	// Bumper
 	bumper_data_ = NULL;
@@ -288,63 +277,6 @@ void ScitosBase::setVelocity(double translational_velocity, double rotational_ve
 	velocity_cmd_->setModified();
 }
 
-void ScitosBase::publishOdometry(double x, double y, double theta, double v, double w) {
-	odom_x_ = x;
-	odom_y_ = y;
-	odom_theta_ = theta;
-	odom_v_ = v;
-	odom_w_ = w;
-}
-void ScitosBase::getOdometry(double& x, double& y, double& theta, double& v, double& w) {
-	x = odom_x_;
-	y = odom_y_;
-	theta = odom_theta_;
-	v = odom_v_;
-	w = odom_w_;
-}
-
-void ScitosBase::publishSonar(std::vector<RangeData::Measurement> measurements) {
-	range_measurements_ = measurements;
-}
-void ScitosBase::getSonar(std::vector<RangeData::Measurement>& measurements) {
-	measurements = range_measurements_;
-}
-
-void ScitosBase::publishSonarConfig(const RangeData::Config* sonar_config) {
-	sonar_config_ = sonar_config;
-}
-void ScitosBase::getSonarConfig(const RangeData::Config*& sonar_config) {
-	sonar_config = sonar_config_;
-}
-
-
-void ScitosBase::publishBatteryState(float voltage, float current, int16_t charge_state,
-		int16_t remaining_time, int16_t charger_status, ros::Time timestamp) {
-	battery_voltage_ = voltage;
-	battery_current_ = current;
-	battery_charge_state_ = charge_state;
-	battery_remaining_time_ = remaining_time;
-	battery_charger_status_ = charger_status;
-	battery_timestamp_ = timestamp;
-}
-void ScitosBase::getBatteryState(float& voltage, float& current, int16_t& charge_state,
-		int16_t& remaining_time, int16_t& charger_status, ros::Time& timestamp) {
-	voltage = battery_voltage_;
-	current = battery_current_;
-	charge_state = battery_charge_state_;
-	remaining_time = battery_remaining_time_;
-	charger_status = battery_charger_status_;
-	timestamp = battery_timestamp_;
-}
-
-void ScitosBase::publishBumperState(bool bumper_pressed, bool motor_stop) {
-	bumper_pressed_ = bumper_pressed;
-	motor_stop_ = motor_stop;
-}
-void ScitosBase::getBumperState(bool& bumper_pressed, bool& motor_stop) {
-	bumper_pressed = bumper_pressed_;
-	motor_stop = motor_stop_;
-}
 
 void ScitosBase::dynamicReconfigureCallback(metralabs_ros::ScitosG5Config& config, uint32_t level) {
 	// I wrote this macro because I couldn't find a way to read the configs parameters generically,
