@@ -34,14 +34,9 @@ int main(int argc, char **argv) {
 
 	/// read parameters
 
-	bool disable_arm;
-	nh_private.param("disable_arm", disable_arm, false);
-
 	std::string scitos_config_file;
 	nh_private.param<std::string>("scitos_config_file", scitos_config_file,
 			"/opt/MetraLabs/MLRobotic/etc/config/SCITOS-G5_without_Head_config.xml");
-
-	ros::Duration(0.9).sleep(); // wait to let the running me close its scitos connection
 
 
 	/// initialize robot base & node components
@@ -49,7 +44,8 @@ int main(int argc, char **argv) {
 	ROS_INFO("Starting robot base...");
 	ScitosBase base(scitos_config_file.c_str(), argc, argv, nh_scitos);
 
-	base.setFeature(FEATURE_SONAR, false);
+
+	/// start robot arm initializer thread if requested
 
 	boost::thread robot_arm_thread_;
 	if(nh_private.hasParam("robot_arm_class")) {
@@ -59,7 +55,7 @@ int main(int argc, char **argv) {
 
 	/// start main loop
 
-	ROS_INFO("Initializing done, starting loop");
+	ROS_INFO("Initializing done, starting ROS spinner");
 	ros::spin();
 
 
@@ -71,8 +67,6 @@ int main(int argc, char **argv) {
 	}
 	else
 		ROS_WARN("robot arm thread not joinable, should this happen?");
-
-	base.setFeature(FEATURE_SONAR, false);
 
 	return 0;
 }

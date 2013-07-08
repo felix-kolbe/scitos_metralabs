@@ -69,21 +69,21 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	// the library MetraLabsBase with the command line arguments.
 	app_ = new Application(pArgc, pArgv);
 	if (app_ == NULL) {
-		fprintf(stderr, "FATAL: Can't create the application!\n");
+		ROS_FATAL("Can't create the application!");
 		exit(-1);
 	}
 
 	// Get the class factory from the application
 	class_factory_ = app_->getClassFactory();
 	if (class_factory_ == NULL) {
-		fprintf(stderr, "FATAL: Cannot get the ClassFactory!\n");
+		ROS_FATAL("Cannot get the ClassFactory!");
 		exit(-1);
 	}
 
 	// Load some parameters for the robot SCITOS-G5
 	ParameterNode tRobotCfg("RobotCfg");
 	if ((tErr = tRobotCfg.readFromFile(config_file)) != OK) {
-		fprintf(stderr, "FATAL: Can't read parameter file. Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Can't read parameter file. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
@@ -92,7 +92,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	// Get the blackboard
 	blackboard_ = app_->getBlackboard();
 	if (blackboard_ == NULL) {
-		fprintf(stderr, "FATAL: Cannot get the Blackboard!\n");
+		ROS_FATAL("Cannot get the Blackboard!");
 		exit(-1);
 	}
 
@@ -103,14 +103,14 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	robot_ = createInstance<Robot>(class_factory_,
 			"b07fb034-83c1-446c-b2df-0dd6aa46eef6");
 	if (robot_ == NULL) {
-		fprintf(stderr, "FATAL: Failed to create the robot. Abort!\n");
+		ROS_FATAL("Failed to create the robot.");
 		exit(-1);
 	}
 
 	// Pre-Initialize the robot
 	int tries = 3;
 	while(tries-->0 && (tErr = robot_->preInitializeClient(&tRobotCfg)) != OK) {
-		ROS_WARN("Failed to pre-initialize the robot. Code: %s. Waiting and retrying..", getErrorString(tErr).c_str());
+		ROS_WARN("Failed to pre-initialize the robot. Waiting and retrying..");
 		sleep(2);
 	}
 	if (tErr != OK) {
@@ -127,13 +127,13 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	robot_->setPhysicalName("Bumper.Bumper.Data",     "MyRobot.Bumper");
 	robot_->setPhysicalName("Bumper.Bumper.ResetCmd", "MyRobot.BumperResetCmd");
 	if ((tErr = robot_->assignToBlackboard(blackboard_, true)) != OK) {
-		fprintf(stderr, "FATAL: Failed to assign the robot to the blackboard. Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to assign the robot to the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
 	// Initialize the robot
 	if ((tErr = robot_->initializeClient(&tRobotCfg)) != OK) {
-		fprintf(stderr, "FATAL: Failed to initialize the robot. Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to initialize the robot. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
@@ -145,7 +145,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	tErr = getDataFromBlackboard<BlackboardDataOdometry>(blackboard_,
 			"MyRobot.Odometry", odometry_data_);
 	if (tErr != OK) {
-		fprintf(stderr, "FATAL: Failed to get the odometry data from the blackboard! Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to get the odometry data from the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 	odometry_data_->addCallback(this);
@@ -155,7 +155,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	tErr = getDataFromBlackboard<BlackboardDataRange>(blackboard_,
 			"MyRobot.Sonar", sonar_data_);
 	if (tErr != OK) {
-		fprintf(stderr, "FATAL: Failed to get the Sonar data from the blackboard! Is it specified in the XML config? Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to get the Sonar data from the blackboard. Is it specified in the XML config? Code: %s", getErrorString(tErr).c_str());
 //		exit(-1);  no, let the robot start wihtout sonar, even if it wasn't specified in the XML config.
 	} else {
 		sonar_data_->addCallback(this);
@@ -166,7 +166,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	tErr = getDataFromBlackboard<BlackboardDataBatteryState>(blackboard_,
 			"MyRobot.BatteryState", battery_state_data_);
 	if (tErr != OK) {
-		fprintf(stderr, "FATAL: Failed to get the battery state data from the blackboard! Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to get the battery state data from the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 	// battery_state_data_->addCallback(this);  // replaced with diagnostics thread fetching on demand
@@ -176,7 +176,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	tErr = getDataFromBlackboard<BlackboardDataBumper>(blackboard_,
 			"MyRobot.Bumper", bumper_data_);
 	if (tErr != OK) {
-		fprintf(stderr, "FATAL: Failed to get the bumper data from the blackboard! Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to get the bumper data from the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 	bumper_data_->addCallback(this);
@@ -189,7 +189,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	tErr = getDataFromBlackboard<BlackboardDataUInt8>(blackboard_,
 			"MyRobot.BumperResetCmd", bumper_reset_cmd_);
 	if (tErr != OK) {
-		fprintf(stderr, "FATAL: Failed to get the bumper reset command from the blackboard! Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to get the bumper reset command from the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
@@ -198,7 +198,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	tErr = getDataFromBlackboard<BlackboardDataVelocity>(blackboard_,
 			"MyRobot.VelocityCmd", velocity_cmd_);
 	if (tErr != OK) {
-		fprintf(stderr, "FATAL: Failed to get the velocity command from the blackboard! Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to get the velocity command from the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
@@ -222,14 +222,14 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 
 	// Start the blackboard
 	if ((tErr = blackboard_->startBlackboard()) != OK) {
-		fprintf(stderr, "FATAL: Failed to start the blackboard. Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to start the blackboard. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
 	///////////////////////////////////////////////////////////////////////////
 	// Start the robot
 	if ((tErr = robot_->startClient()) != OK) {
-		fprintf(stderr, "FATAL: Failed to start the robot system. Code: %s\n", getErrorString(tErr).c_str());
+		ROS_FATAL("Failed to start the robot system. Code: %s", getErrorString(tErr).c_str());
 		exit(-1);
 	}
 
@@ -269,12 +269,23 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 
 }
 
+ScitosBase::~ScitosBase() {
+	setFeature(FEATURE_SONAR, false);
 
-void ScitosBase::setVelocity(double translational_velocity, double rotational_velocity) {
-	velocity_cmd_->writeLock();
-	velocity_cmd_->setVelocity(translational_velocity, rotational_velocity);
-	velocity_cmd_->writeUnlock(MTime::now());
-	velocity_cmd_->setModified();
+	Error tErr;
+	if ((tErr = blackboard_->stopBlackboard()) != OK)
+		ROS_ERROR("Failed to stop the blackboard. Code: %s", getErrorString(tErr).c_str());
+
+	// Stop the robot.
+	if ((tErr = robot_->stopClient()) != OK)
+		ROS_ERROR("Failed to stop the robot system. Code: %s", getErrorString(tErr).c_str());
+
+	// Destroy the robot
+	if ((tErr = robot_->destroyClient()) != OK)
+		ROS_ERROR("Failed to destroy the robot system. Code: %s", getErrorString(tErr).c_str());
+
+	// Delete the application object
+	delete app_;
 }
 
 
@@ -321,19 +332,311 @@ void ScitosBase::getFeatures(metralabs_ros::ScitosG5Config& config) {
 }
 
 
-ScitosBase::~ScitosBase() {
-	Error tErr;
-	if ((tErr = blackboard_->stopBlackboard()) != OK)
-		fprintf(stderr, "ERROR: Failed to stop the blackboard. Code: %s\n", getErrorString(tErr).c_str());
+void ScitosBase::odometryCallbackHandler() {
+	MTime time;
+	Pose pose;
+	Velocity velocity;
+	float mileage;
 
-	// Stop the robot.
-	if ((tErr = robot_->stopClient()) != OK)
-		fprintf(stderr, "ERROR: Failed to stop the robot system. Code: %s\n", getErrorString(tErr).c_str());
+	odometry_data_->readLock();
+	odometry_data_->getData(pose, velocity, mileage);
+	time = odometry_data_->getTimeStamp();
+	odometry_data_->readUnlock();
 
-	// Destroy the robot
-	if ((tErr = robot_->destroyClient()) != OK)
-		fprintf(stderr, "ERROR: Failed to destroy the robot system. Code: %s\n", getErrorString(tErr).c_str());
+	/// The odometry position and velocities of the robot
+	ros::Time odom_time = ros::Time().fromNSec(time.getTimeValue()*1000000);
+	double x = pose.getX();
+	double y = pose.getY();
+	double th = pose.getPhi();
+	double vx = velocity.getVelocityTranslational();
+	double vth = velocity.getVelocityRotational();
 
-	// Delete the application object
-	delete app_;
+	// since all odometry is 6DOF we'll need a quaternion created from yaw
+	geometry_msgs::Quaternion odom_quat = tf::createQuaternionMsgFromYaw(th);
+
+	/// odometry tf
+	geometry_msgs::TransformStamped odom_tf;
+	odom_tf.header.stamp = odom_time;
+	odom_tf.header.frame_id = "/odom";
+	odom_tf.child_frame_id = "/base_link";
+
+	odom_tf.transform.translation.x = x;
+	odom_tf.transform.translation.y = y;
+	odom_tf.transform.rotation = odom_quat;
+
+	// publish the transform
+	tf_broadcaster_.sendTransform(odom_tf);
+
+	/// odometry data
+	nav_msgs::Odometry odom_msg;
+	odom_msg.header.stamp = odom_time;
+	odom_msg.header.frame_id = "/odom";
+	odom_msg.child_frame_id = "/base_link";
+
+	// set the position
+	odom_msg.pose.pose.position.x = x;
+	odom_msg.pose.pose.position.y = y;
+	odom_msg.pose.pose.orientation = odom_quat;
+
+	// set the velocity
+	odom_msg.twist.twist.linear.x = vx;
+	odom_msg.twist.twist.angular.z = vth;
+
+	// publish the message
+	odom_publisher_.publish(odom_msg);
+}
+
+void ScitosBase::sonarCallbackHandler() {
+	static const RangeData::Config* sonar_config = NULL;
+
+	sonar_data_->readLock();
+	MTime timestamp = odometry_data_->getTimeStamp();
+	const RangeData::Vector& sonar_data = sonar_data_->getRangeData();
+	if (sonar_config == NULL)
+		sonar_config = sonar_data_->getConfig();
+	sonar_data_->readUnlock();
+
+	const std::vector<RangeData::Measurement> measurements = sonar_data;
+	ros::Time sonar_time = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
+
+
+	if(!sonar_is_requested_) {
+		setFeature(FEATURE_SONAR, false);
+	} else {
+		if (sonar_config == NULL) {
+			ROS_WARN_THROTTLE(0.5, "Could not yet read sonar config.");
+		} else {
+			// if config is loaded, proceed..
+			const RangeData::ConfigCircularArc* sonar_config_circular =
+					dynamic_cast<const RangeData::ConfigCircularArc*>(sonar_config);
+
+			/// sonar tf
+
+			// calculate transforms (once)
+			static std::vector<tf::Transform> sonar_transforms;
+			static bool sonar_transforms_calculated = false;
+
+			if(!sonar_transforms_calculated) {
+				sonar_transforms_calculated = true;
+				float angle = sonar_config_circular->first_sensor_angle;
+				for (unsigned int i = 0; i < sonar_config_circular->sensor_cnt; ++i) {
+					float x = sonar_config_circular->offset_from_center * std::cos(angle) -0.075;
+					float y = sonar_config_circular->offset_from_center * std::sin(angle);
+					tf::Quaternion quat;
+					quat.setEuler(0, 0, angle);
+					tf::Transform* transform = new tf::Transform(quat, tf::Vector3(x, y, 0.25));
+					sonar_transforms.push_back(*transform);
+					angle += sonar_config_circular->sensor_angle_dist;
+				}
+				// broadcast all transforms once
+				std::vector<tf::Transform>::iterator it = sonar_transforms.begin();
+				for (int i = 0; it != sonar_transforms.end(); ++it) {
+					char targetframe[20];
+					sprintf(targetframe, "/sonar/sonar_%02d", i++);
+					tf_broadcaster_.sendTransform(
+							tf::StampedTransform(*it, sonar_time, "/base_link", targetframe)
+						);
+				}
+			}
+
+			/// sonar data msg
+
+			sensor_msgs::Range sonar_msg;
+			sonar_msg.header.stamp = sonar_time;
+			sonar_msg.radiation_type = sensor_msgs::Range::ULTRASOUND;
+			sonar_msg.field_of_view = sonar_config_circular->cone_angle;  // DEG_TO_RAD(15);	// from manual
+			sonar_msg.min_range = 0.2;	// from manual
+			sonar_msg.max_range = 3;	// from manual
+
+			// each time send only one sonar data and one transform to reduce repeating messages
+			{
+				static int next_sonar_to_send = 0;
+				char next_sonar_frame[20];
+				sprintf(next_sonar_frame, "/sonar/sonar_%02d", next_sonar_to_send);
+
+				// range data
+			//	ROS_DEBUG("Sonar #%d: value: %1.3f status: %d", next_sonar_to_send, measurements.at(next_sonar_to_send).range, measurements.at(next_sonar_to_send).err.std);
+				switch(measurements.at(next_sonar_to_send).err.std) {
+					case RangeData::RANGE_OKAY:
+					case RangeData::RANGE_OBJECT_SOMEWHERE_IN_RANGE:
+					case RangeData::RANGE_PROBABLY_OKAY:
+					case RangeData::RANGE_PROBABLY_OBJECT_SOMEWHERE_IN_RANGE:
+						sonar_msg.range = measurements.at(next_sonar_to_send).range;
+						break;
+					case RangeData::RANGE_NO_OBJECT_WITHIN_RANGE:
+					case RangeData::RANGE_PROBABLY_NO_OBJECT_WITHIN_RANGE:
+					case RangeData::RANGE_INVALID_MEASUREMENT:
+					case RangeData::RANGE_ERR_SENSOR_BROKEN:
+					case RangeData::RANGE_MASKED:
+					default:
+						;// TODO maybe send a zero-range message to make the old value obsolete, if that isn't useful
+						sonar_msg.range = 0;
+				}
+				sonar_msg.header.frame_id = next_sonar_frame;
+				sonar_publisher_.publish(sonar_msg);
+
+				// resend also one transform (the according, why not)
+				tf_broadcaster_.sendTransform( tf::StampedTransform(
+						sonar_transforms.at(next_sonar_to_send), ros::Time::now(), "/base_link", next_sonar_frame ) );
+
+				++next_sonar_to_send %= measurements.size();
+			}
+
+//		this is code to send all sonar measurements at one time
+//			std::vector<RangeData::Measurement>::iterator itM = measurements.begin();
+//			for(int i=0; itM != measurements.end(); ++itM) {
+////				std::cout<<itM->range<<" ";
+//
+//				char targetframe[20];
+//				sprintf(targetframe, "/sonar/sonar_%2d", i++);
+//				sonar.header.frame_id = targetframe;
+//				sonar.range = itM->range+1;
+//
+//				//publish the message
+//				sonar_publisher_.publish(sonar);
+//			}
+
+		} // if sonar config loaded
+	} // if sonar active
+}
+
+void ScitosBase::bumperDataCallbackHandler() {
+	bumper_data_->readLock();
+	BumperData::Vector bumper_values = bumper_data_->getBumperData();
+	MTime timestamp = odometry_data_->getTimeStamp();
+	bumper_data_->readUnlock();
+
+	bool bumper_pressed = false;
+	bool motor_stop = false;
+
+#define BUMPER_CODE_PUSHED 0x12
+#define BUMPER_CODE_LOCKED 0x02
+
+	for (BumperData::Vector::const_iterator it = bumper_values.begin(); it != bumper_values.end(); ++it) {
+		if (*it == BUMPER_CODE_PUSHED) {
+			bumper_pressed = true;
+			motor_stop = true;
+			break;  // no next bumper part would change any value
+		}
+		else if (*it == BUMPER_CODE_LOCKED) {
+			motor_stop = true;
+		}
+	}
+
+	metralabs_ros::ScitosG5Bumper bumper_msg;
+	bumper_msg.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
+	bumper_msg.bumper_pressed = bumper_pressed;
+	bumper_msg.motor_stop = motor_stop;
+
+	bumper_publisher_.publish(bumper_msg);
+}
+
+void ScitosBase::diagnosticsPublishingLoop(ros::Rate loop_rate) {
+	// send diagnostics message for battery state but with lower frequency
+	// robot itself publishes with 10 Hz into Blackboard
+	while (node_handle_.ok()) {
+		battery_state_data_->readLock();
+		float voltage = battery_state_data_->getVoltage();
+		float current = battery_state_data_->getCurrent();
+		int16_t charge_state = battery_state_data_->getChargeState();
+		int16_t remaining_time = battery_state_data_->getRemainingTime();
+		int16_t charger_status= battery_state_data_->getChargerStatus();
+		MTime timestamp = battery_state_data_->getTimeStamp();
+		battery_state_data_->readUnlock();
+
+		diagnostic_msgs::DiagnosticStatus battery_status;
+		battery_status.name = "Battery";
+		battery_status.message = "undefined";
+		battery_status.hardware_id = "0a4fcec0-27ef-497a-93ba-db39808ec1af";
+
+// TODO do me parameters
+#define 	VOLTAGE_ERROR_LEVEL	23		// and below
+#define 	VOLTAGE_WARN_LEVEL	24		// and below
+#define 	VOLTAGE_MID_LEVEL	26		// and below // above means HIGH_LEVEL
+#define 	VOLTAGE_FULL_LEVEL	28.8	// and above
+#define 	CHARGER_PLUGGED 	1
+
+		if(voltage < VOLTAGE_ERROR_LEVEL && charger_status != CHARGER_PLUGGED)
+			battery_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
+		else if(voltage < VOLTAGE_WARN_LEVEL && charger_status != CHARGER_PLUGGED)
+			battery_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
+		else
+			battery_status.level = diagnostic_msgs::DiagnosticStatus::OK;
+
+		// build text message
+		battery_status.message = "High";
+		if(voltage < VOLTAGE_MID_LEVEL)
+			battery_status.message = "Mid";
+		if(voltage < VOLTAGE_WARN_LEVEL)
+			battery_status.message = "Low";
+		if(voltage < VOLTAGE_ERROR_LEVEL)
+			battery_status.message = "Depleted";
+		battery_status.message += charger_status == CHARGER_PLUGGED ? ", charging" : ", discharging";
+		if(voltage >= VOLTAGE_FULL_LEVEL)
+			battery_status.message = "Fully charged";
+
+		// set values
+		battery_status.values.resize(5);
+		std::stringstream ss;
+		battery_status.values[0].key = "Voltage";
+		ss << voltage << " V";
+		battery_status.values[0].value = ss.str();
+
+		ss.str("");
+		battery_status.values[1].key = "Current";
+		ss << current << " A";
+		battery_status.values[1].value = ss.str();
+
+		ss.str("");
+		battery_status.values[2].key = "ChargeState";
+		ss << charge_state << " %";
+		battery_status.values[2].value = ss.str();
+
+		ss.str("");
+		battery_status.values[3].key = "RemainingTime";
+		ss << remaining_time << " min";
+		battery_status.values[3].value = ss.str();
+
+		battery_status.values[4].key = "ChargerStatus";
+		battery_status.values[4].value = charger_status == CHARGER_PLUGGED ? "plugged" : "unplugged";
+
+		/// combine and publish statii as array
+		diagnostic_msgs::DiagnosticArray diag_array;
+		diag_array.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
+		diag_array.status.push_back(battery_status);
+		diagnostics_publisher_.publish(diag_array);
+
+		// This will adjust as needed per iteration
+		loop_rate.sleep();
+	}
+}
+
+void ScitosBase::checkSubscribersLoop(ros::Rate loop_rate) {
+	// set state variable and hardware to same state
+	sonar_is_requested_ = false;
+	setFeature(FEATURE_SONAR, false);
+	while (node_handle_.ok()) {
+		/// enable or disable sonar if someone or no one is listening
+		bool sonar_had_been_requested = sonar_is_requested_;
+		sonar_is_requested_ = sonar_publisher_.getNumSubscribers() != 0;
+		// this check allows to override sonar state via dynamic reconfigure and avoids overhead
+		if(sonar_is_requested_ != sonar_had_been_requested) {
+			setFeature(FEATURE_SONAR, sonar_is_requested_);
+			ROS_INFO_STREAM("Switching sonar feature to: " << (sonar_is_requested_ ? "enabled" : "disabled"));
+		}
+		loop_rate.sleep();
+	}
+}
+
+void ScitosBase::dynamicReconfigureUpdaterLoop(
+		dynamic_reconfigure::Server<metralabs_ros::ScitosG5Config> &dynamic_reconfigure_server,
+		boost::recursive_mutex &mutex, ros::Rate loop_rate) {
+	metralabs_ros::ScitosG5Config config;
+	while (node_handle_.ok()) {
+		getFeatures(config);// update config to current hardware state
+		boost::recursive_mutex::scoped_lock lock(mutex);
+		dynamic_reconfigure_server.updateConfig(config);
+		lock.unlock();
+		loop_rate.sleep();
+	}
 }
