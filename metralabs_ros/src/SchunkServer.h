@@ -12,8 +12,8 @@
 
 #include <std_msgs/Int8.h>
 
-#include <metralabs_ros/idAndFloat.h>
-#include <metralabs_ros/SchunkStatus.h>
+#include <metralabs_msgs/IDAndFloat.h>
+#include <metralabs_msgs/SchunkStatus.h>
 
 #include <sensor_msgs/JointState.h>
 
@@ -469,9 +469,9 @@ private:
 		current_JointState_publisher_ = node_handle_.advertise<sensor_msgs::JointState>("/joint_states", 1);
 
 		// Set up the schunk status publisher
-		current_SchunkStatus_publisher_ = node_handle_.advertise<metralabs_ros::SchunkStatus>("status", 1);
+		current_SchunkStatus_publisher_ = node_handle_.advertise<metralabs_msgs::SchunkStatus>("status", 1);
 		for (uint i = 0; i < joints_list_.size(); ++i) {
-			metralabs_ros::SchunkJointStatus status;
+			metralabs_msgs::SchunkJointStatus status;
 			status.jointName = joints_list_[i]->name;
 			current_SchunkStatus_.joints.push_back(status);
 		}
@@ -547,17 +547,17 @@ private:
 	}
 
 
-	void cb_setVelocity(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+	void cb_setVelocity(const metralabs_msgs::IDAndFloat::ConstPtr& data)	{
 		ROS_INFO("cb_setVelocity: [%d, %f]", data->id, data->value);
 		arm_->setVelocity(data->id, data->value);
 	}
 
-	void cb_setAcceleration(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+	void cb_setAcceleration(const metralabs_msgs::IDAndFloat::ConstPtr& data)	{
 		ROS_INFO("cb_setAcceleration: [%d, %f]", data->id, data->value);
 		arm_->setAcceleration(data->id, data->value);
 	}
 
-	void cb_setCurrent(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+	void cb_setCurrent(const metralabs_msgs::IDAndFloat::ConstPtr& data)	{
 		ROS_INFO("cb_setCurrent: [%d, %f]", data->id, data->value);
 		arm_->setCurrent(data->id, data->value);
 	}
@@ -568,12 +568,12 @@ private:
 	}
 
 
-	void cb_movePosition(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+	void cb_movePosition(const metralabs_msgs::IDAndFloat::ConstPtr& data)	{
 		ROS_INFO("cb_movePosition: [%d, %f]", data->id, data->value);
 		arm_->movePosition(data->id, data->value);
 	}
 
-	void cb_moveVelocity(const metralabs_ros::idAndFloat::ConstPtr& data)	{
+	void cb_moveVelocity(const metralabs_msgs::IDAndFloat::ConstPtr& data)	{
 		ROS_INFO("cb_moveVelocity: [%d, %f]", data->id, data->value);
 		if (data->value == 0.0)
 			arm_->normalStopJoint(data->id);
@@ -665,7 +665,7 @@ private:
 	}
 
 	void publishCurrentSchunkStatus() {
-		std::vector<metralabs_ros::SchunkJointStatus>::iterator it;
+		std::vector<metralabs_msgs::SchunkJointStatus>::iterator it;
 		uint module_number;
 		for (it = current_SchunkStatus_.joints.begin(); it != current_SchunkStatus_.joints.end(); ++it) {
 			module_number = joints_name_to_number_map_[it->jointName];
@@ -684,7 +684,7 @@ private:
 	std::map<std::string, unsigned int> joints_name_to_number_map_;
 
 	sensor_msgs::JointState current_JointState_;
-	metralabs_ros::SchunkStatus current_SchunkStatus_;
+	metralabs_msgs::SchunkStatus current_SchunkStatus_;
 	ros::Publisher current_JointState_publisher_;
 	ros::Publisher current_SchunkStatus_publisher_;
 

@@ -208,7 +208,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 
 	odom_publisher_ = node_handle_.advertise<nav_msgs::Odometry>("/odom", 20);
 	sonar_publisher_ = node_handle_.advertise<sensor_msgs::Range>("/sonar", 50);
-	bumper_publisher_ = node_handle_.advertise<metralabs_ros::ScitosG5Bumper>("/bumper", 20);
+	bumper_publisher_ = node_handle_.advertise<metralabs_msgs::ScitosG5Bumper>("/bumper", 20);
 
 	cmd_vel_subscriber_ = node_handle_.subscribe("/cmd_vel", 1, &ScitosBase::driveCommandCallback, this);
 	bumper_reset_subscriber_ = node_handle_.subscribe("/bumper_reset", 1, &ScitosBase::bumperResetCallback, this);
@@ -523,7 +523,7 @@ void ScitosBase::bumperDataCallbackHandler() {
 		}
 	}
 
-	metralabs_ros::ScitosG5Bumper bumper_msg;
+	metralabs_msgs::ScitosG5Bumper bumper_msg;
 	bumper_msg.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
 	bumper_msg.bumper_pressed = bumper_pressed;
 	bumper_msg.motor_stop = motor_stop;

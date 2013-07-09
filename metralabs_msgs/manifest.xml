@@ -1,0 +1,12 @@
+<package>
+  <description brief="metralabs_msgs">
+
+     The messages used within the Scitos robot driver in `metralabs_ros`. Basically extracted from there.
+
+  </description>
+  <author>Felix Kolbe</author>
+  <license>GPL</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/metralabs_msgs</url>
+
+</package>

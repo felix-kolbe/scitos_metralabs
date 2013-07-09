@@ -16,39 +16,15 @@ set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 #set the default path for built libraries to the "lib" directory
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-set (ML_ROOT_DIR /opt/MetraLabs)
-include_directories(${ML_ROOT_DIR}/MetraLabsBase/include ${ML_ROOT_DIR}/MLRobotic/include)
-#set(CMAKE_LIBRARY_PATH /opt/MetraLabs/lib)
-link_directories (${ML_ROOT_DIR}/lib)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_REENTRANT -DM_LINUX -Wall")
-
 #uncomment if you have defined messages
-#rosbuild_genmsg()
+rosbuild_genmsg()
 #uncomment if you have defined services
 #rosbuild_gensrv()
 
 #common commands for building c++ executables and libraries
 #rosbuild_add_library(${PROJECT_NAME} src/example.cpp)
-#LINK_DIRECTORIES( ${LINK_DIRECTORIES} )
+#target_link_libraries(${PROJECT_NAME} another_library)
 #rosbuild_add_boost_directories()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
-#rosbuild_add_executable(tester src/tester.cpp)
+#rosbuild_add_executable(example examples/example.cpp)
 #target_link_libraries(example ${PROJECT_NAME})
-
-
-rosbuild_add_executable(ScitosServer src/ScitosServer.cpp src/ScitosBase.cpp)
-
-target_link_libraries(ScitosServer MetraLabsBase)
-target_link_libraries(ScitosServer MLRoboticBase)
-target_link_libraries(ScitosServer MLRoboticSystem)
-target_link_libraries(ScitosServer MLRoboticCAN)
-target_link_libraries(ScitosServer MLRoboticRobot)
-target_link_libraries(ScitosServer MLRoboticSCITOS)
-target_link_libraries(ScitosServer MLRoboticHardware)
-target_link_libraries(ScitosServer MLRoboticHardwareSCHUNK)
-
-#add dynamic reconfigure api
-rosbuild_find_ros_package(dynamic_reconfigure)
-include(${dynamic_reconfigure_PACKAGE_PATH}/cmake/cfgbuild.cmake)
-gencfg()
-

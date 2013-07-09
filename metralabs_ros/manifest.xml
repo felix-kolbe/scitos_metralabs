@@ -16,6 +16,8 @@
   <depend package="actionlib"/>
   <depend package="dynamic_reconfigure"/>
   
+  <depend package="metralabs_msgs"/>
+  
   <depend package="diagnostic_msgs"/>
   <depend package="std_msgs"/>
   <depend package="sensor_msgs"/>

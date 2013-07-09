@@ -20,7 +20,7 @@
 #include <sensor_msgs/Range.h>
 #include <nav_msgs/Odometry.h>
 
-#include <metralabs_ros/ScitosG5Bumper.h>
+#include <metralabs_msgs/ScitosG5Bumper.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <metralabs_ros/ScitosG5Config.h>
