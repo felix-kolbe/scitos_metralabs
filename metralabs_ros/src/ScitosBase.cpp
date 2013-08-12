@@ -521,6 +521,7 @@ void ScitosBase::bumperDataCallbackHandler() {
 		else if (*it == BUMPER_CODE_LOCKED) {
 			motor_stop = true;
 		}
+		ROS_DEBUG("BumperData was: %X bumper_pressed: %d motor_stop: %d", *it, bumper_pressed, motor_stop);
 	}
 
 	metralabs_msgs::ScitosG5Bumper bumper_msg;
@@ -536,6 +537,7 @@ void ScitosBase::diagnosticsPublishingLoop(ros::Rate loop_rate) {
 	// robot itself publishes with 10 Hz into Blackboard
 	while (node_handle_.ok()) {
 		battery_state_data_->readLock();
+		MString name = static_cast<BatteryState*>(battery_state_data_)->getName();
 		float voltage = battery_state_data_->getVoltage();
 		float current = battery_state_data_->getCurrent();
 		int16_t charge_state = battery_state_data_->getChargeState();
@@ -545,9 +547,9 @@ void ScitosBase::diagnosticsPublishingLoop(ros::Rate loop_rate) {
 		battery_state_data_->readUnlock();
 
 		diagnostic_msgs::DiagnosticStatus battery_status;
-		battery_status.name = "Battery";
+		battery_status.name = "Scitos G5: Battery";
 		battery_status.message = "undefined";
-		battery_status.hardware_id = "0a4fcec0-27ef-497a-93ba-db39808ec1af";
+		battery_status.hardware_id = name;
 
 // TODO do me parameters
 #define 	VOLTAGE_ERROR_LEVEL	23		// and below

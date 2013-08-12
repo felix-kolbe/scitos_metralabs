@@ -133,7 +133,6 @@ public:
 			}
 			ROS_INFO("Trajectory thread has finished its job");
 		}
-		return; //just to be sure the thread is terminated
 	}
 
 	void start(const trajectory_msgs::JointTrajectory& newtraj) {
