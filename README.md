@@ -1,4 +1,4 @@
-scitos
-======
+scitos_metralabs
+----------------
 
-ROS drivers for MetraLabs Scitos series of robots
+ROS driver for the MetraLabs Scitos G5 mobile robot using the MetraLabs ABI.
