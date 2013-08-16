@@ -48,7 +48,9 @@ int main(int argc, char **argv) {
 	/// start robot arm initializer thread if requested
 
 	boost::thread robot_arm_thread_;
-	if(nh_private.hasParam("robot_arm_class")) {
+	std::string robot_arm_class;
+	if(nh_private.getParam("robot_arm_class", robot_arm_class) && robot_arm_class != "None") {
+		// if the parameter exists and does not match "None"
 		robot_arm_thread_ = boost::thread(robotArmThread, boost::ref(base), boost::ref(nh_schunk));
 	}
 
