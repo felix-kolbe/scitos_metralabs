@@ -18,7 +18,7 @@
 #include <sensor_msgs/JointState.h>
 
 #include <trajectory_msgs/JointTrajectory.h>
-#include <pr2_controllers_msgs/JointTrajectoryControllerState.h>
+#include <control_msgs/JointTrajectoryControllerState.h>
 #include <control_msgs/FollowJointTrajectoryAction.h>
 
 #include "RobotArm.h"
@@ -54,7 +54,7 @@ public:
 		arm_ = arm;
 		joints_name_to_number_map_ = joints_name_to_number_map;
 
-		state_publisher_ = nh_.advertise<pr2_controllers_msgs::JointTrajectoryControllerState>("trajectory_state", 5);
+		state_publisher_ = nh_.advertise<control_msgs::JointTrajectoryControllerState>("trajectory_state", 5);
 
 		std::map<std::string, unsigned int>::iterator it;
 		for (it = joints_name_to_number_map_.begin(); it != joints_name_to_number_map_.end(); ++it) {
@@ -375,7 +375,7 @@ private:
 	bool waiting_;
 	boost::condition_variable cond_;
 	boost::mutex mut_;
-	pr2_controllers_msgs::JointTrajectoryControllerState state_msg_;
+	control_msgs::JointTrajectoryControllerState state_msg_;
 	ros::Publisher state_publisher_;
 };
 
