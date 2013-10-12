@@ -509,19 +509,29 @@ void ScitosBase::bumperDataCallbackHandler() {
 	bool bumper_pressed = false;
 	bool motor_stop = false;
 
-#define BUMPER_CODE_PUSHED 0x12
-#define BUMPER_CODE_LOCKED 0x02
+#define BUMPER_CODE_FREE   0x00
+#define BUMPER_CODE_FLAG_PUSHED 0x10
+#define BUMPER_CODE_FLAG_LOCKED 0x02
+#define BUMPER_CODE_KNOWN_FLAGS (BUMPER_CODE_FLAG_PUSHED | BUMPER_CODE_FLAG_LOCKED)
 
 	for (BumperData::Vector::const_iterator it = bumper_values.begin(); it != bumper_values.end(); ++it) {
-		if (*it == BUMPER_CODE_PUSHED) {
+		uint16_t flags = *it;
+		uint16_t flags_left = flags & ~BUMPER_CODE_KNOWN_FLAGS;
+
+		if (flags_left) {
+			ROS_WARN("BumperData has unknown bits set: 0x%02X all flags: 0x%02X", flags_left, flags);
+		}
+
+		if (flags & BUMPER_CODE_FLAG_PUSHED) {
 			bumper_pressed = true;
 			motor_stop = true;
 			break;  // no next bumper part would change any value
 		}
-		else if (*it == BUMPER_CODE_LOCKED) {
+		else if (flags & BUMPER_CODE_FLAG_LOCKED) {
 			motor_stop = true;
 		}
-		ROS_DEBUG("BumperData was: %X bumper_pressed: %d motor_stop: %d", *it, bumper_pressed, motor_stop);
+
+		ROS_DEBUG("BumperData: 0x%02X bumper_pressed: %d motor_stop: %d", flags, bumper_pressed, motor_stop);
 	}
 
 	metralabs_msgs::ScitosG5Bumper bumper_msg;
