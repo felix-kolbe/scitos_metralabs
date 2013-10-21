@@ -3,7 +3,7 @@ build/
 lib/
 msg_gen/
 srv_gen/
-cfg/cpp
+*/cfg/cpp
 */src/*/cfg
 */src/*/msg
 */src/*/srv

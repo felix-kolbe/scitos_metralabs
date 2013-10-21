@@ -3,8 +3,11 @@
 rosparam set -t  `rospack find metralabs_ros`/models/scitos_haw_only.urdf robot_description
 
 # base wo arm with MDebug
-/home/demo/ros_workspace/Sensorik/uuisrc-ros-pkg/uu-robots/metralabs_ros/bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros disable_arm:=true -MDebugLevel 5
+/home/demo/ros_workspace/stacks/scitos_metralabs/metralabs_ros/bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros robot_arm_class:=None -MDebugLevel 5
+
+# base with arm with MDebug
+/home/demo/ros_workspace/stacks/scitos_metralabs/metralabs_ros/bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros robot_arm_class:=LWA3ArmUASHH -MDebugLevel 5
 
 
-valgrind --leak-check=yes --track-origins=yes     ../bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros disable_arm:=true -MDebugLevel 3
+valgrind --leak-check=yes --track-origins=yes     ../bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros robot_arm_class:=None -MDebugLevel 3
 
