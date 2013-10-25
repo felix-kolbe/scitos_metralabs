@@ -85,21 +85,22 @@ public:
 
 
 
-	virtual void getModuleStatus(int module_id, uint8_t& referenced, uint8_t& moving, uint8_t& progMode, uint8_t& warning,
-			uint8_t& error, uint8_t& brake, uint8_t& moveEnd, uint8_t& posReached, uint8_t& errorCode, float& current) {
-		const AmtecManipulator::ModuleConfig *moduleConfig;
-		manipulator_.getModuleConfig(module_id + id_offset_, moduleConfig);
+	virtual void getModuleStatus(IDType module_id, uint8_t& referenced, uint8_t& moving,
+			uint8_t& prog_mode, uint8_t& warning, uint8_t& error, uint8_t& brake,
+			uint8_t& move_end, uint8_t& pos_reached, uint8_t& error_code, float& current) {
+		const AmtecManipulator::ModuleConfig *module_config;
+		manipulator_.getModuleConfig(module_id + id_offset_, module_config);
 
-		brake = moduleConfig->status_flags.flags.brake == 1;
-		error = moduleConfig->status_flags.flags.error == 1;
-		moveEnd = moduleConfig->status_flags.flags.halted == 1; // TODO check if used correctly
-		moving = moduleConfig->status_flags.flags.motion == 1;
-		posReached = moduleConfig->status_flags.flags.brake == 0; // TODO // no better equivalent // really?
-		progMode = 0; // no equivalent
-		referenced = moduleConfig->status_flags.flags.home_ok == 1;
-		warning = moduleConfig->status_flags.flags.cur_limit == 1;
-		errorCode = 0; // TODO no equivalent, check if needed by caller
-		current = moduleConfig->status_cur;
+		brake = module_config->status_flags.flags.brake == 1;
+		error = module_config->status_flags.flags.error == 1;
+		move_end = module_config->status_flags.flags.ramp_end == 1; // TODO check if used correctly
+		moving = module_config->status_flags.flags.motion == 1;
+		pos_reached = module_config->status_flags.flags.brake == 0; // TODO // no better equivalent // really?
+		prog_mode = 0; // no equivalent
+		referenced = module_config->status_flags.flags.home_ok == 1;
+		warning = module_config->status_flags.flags.cur_limit == 1;
+		error_code = 0; // TODO no equivalent, check if needed by caller
+		current = module_config->status_cur;
 	}
 
 

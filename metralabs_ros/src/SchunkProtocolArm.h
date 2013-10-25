@@ -90,21 +90,22 @@ public:
 
 
 
-	virtual void getModuleStatus(int module_id, uint8_t& referenced, uint8_t& moving, uint8_t& progMode, uint8_t& warning,
-			uint8_t& error, uint8_t& brake, uint8_t& moveEnd, uint8_t& posReached, uint8_t& errorCode, float& current) {
-		const SCHUNKMotionManipulator::ModuleConfig *moduleConfig;
-		manipulator_.getModuleConfig(module_id + id_offset_, moduleConfig);
+	virtual void getModuleStatus(IDType module_id, uint8_t& referenced, uint8_t& moving,
+			uint8_t& prog_mode, uint8_t& warning, uint8_t& error, uint8_t& brake,
+			uint8_t& move_end, uint8_t& pos_reached, uint8_t& error_code, float& current) {
+		const SCHUNKMotionManipulator::ModuleConfig *module_config;
+		manipulator_.getModuleConfig(module_id + id_offset_, module_config);
 
-		brake = moduleConfig->status_flags.flags.brake == 1;
-		error = moduleConfig->status_flags.flags.error == 1;
-		moveEnd = moduleConfig->status_flags.flags.move_end == 1;
-		moving = moduleConfig->status_flags.flags.moving == 1;
-		posReached = moduleConfig->status_flags.flags.pos_reached == 1;
-		progMode = moduleConfig->status_flags.flags.prog_mode == 1;
-		referenced = moduleConfig->status_flags.flags.referenced == 1;
-		warning = moduleConfig->status_flags.flags.warning == 1;
-		errorCode = moduleConfig->error_code;
-		current = moduleConfig->norm_current;
+		brake = module_config->status_flags.flags.brake == 1;
+		error = module_config->status_flags.flags.error == 1;
+		move_end = module_config->status_flags.flags.move_end == 1;
+		moving = module_config->status_flags.flags.moving == 1;
+		pos_reached = module_config->status_flags.flags.pos_reached == 1;
+		prog_mode = module_config->status_flags.flags.prog_mode == 1;
+		referenced = module_config->status_flags.flags.referenced == 1;
+		warning = module_config->status_flags.flags.warning == 1;
+		error_code = module_config->error_code;
+		current = module_config->norm_current;
 	}
 
 

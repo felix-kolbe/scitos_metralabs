@@ -5,7 +5,6 @@
 
 #include "ScitosBase.h"
 
-#define SCHUNK_NOT_AMTEC 0
 #include "SchunkServer.h"
 
 

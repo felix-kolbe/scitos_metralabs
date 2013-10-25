@@ -47,16 +47,20 @@ public:
 	{
 		run_ = false;
 		waiting_ = false;
+
+		// make sure isnanf is working here and now
+		ROS_ASSERT(isnanf(0 / (float)0));
+		ROS_ASSERT(isnanf(-0 / (float)0));
 	}
 
-	void init(RobotArm* arm, std::map<std::string, unsigned int>& joints_name_to_number_map) {
+	void init(RobotArm* arm, std::map<std::string, RobotArm::IDType>& joints_name_to_number_map) {
 
 		arm_ = arm;
 		joints_name_to_number_map_ = joints_name_to_number_map;
 
 		state_publisher_ = nh_.advertise<control_msgs::JointTrajectoryControllerState>("trajectory_state", 5);
 
-		std::map<std::string, unsigned int>::iterator it;
+		std::map<std::string, RobotArm::IDType>::iterator it;
 		for (it = joints_name_to_number_map_.begin(); it != joints_name_to_number_map_.end(); ++it) {
 			state_msg_.joint_names.push_back(it->first);
 		}
@@ -75,8 +79,8 @@ public:
 				boost::bind(&TrajectoryExecuter::trajectoryActionCallback, this, _1), false);
 		as_->start();
 	}
-	~TrajectoryExecuter() {
 
+	~TrajectoryExecuter() {
 		delete as_;
 	}
 
@@ -166,15 +170,42 @@ public:
 	}
 
 
+	// TODO: DOC choose this only if the velocity and time are calculated precisely
 	void trajectoryActionCallback(const control_msgs::FollowJointTrajectoryGoalConstPtr& goal)
 	{
-		bool success = true;
-		ros::Time trajStartTime = ros::Time::now();
 		const trajectory_msgs::JointTrajectory& traj = goal->trajectory;
+		const unsigned int num_of_joints = traj.joint_names.size();
+
+		// joint order does not change within trajectory, therefore
+		//  to prevent superfluous joint name comparisons this array maps the
+		//  index in the message  (usually joint_i) to the id in the model
+		RobotArm::IDType msg_index_to_model_index[num_of_joints];
+		// for each joint in step... map id
+		for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
+			RobotArm::IDType id = joints_name_to_number_map_[traj.joint_names[joint_i]];
+			msg_index_to_model_index[joint_i] = id;
+			ROS_INFO_STREAM("TrajectoryAction callback: mapping joint: msg id "<<joint_i<<" to model id "<<id);
+		}
+
+
+		// check arm conditions before starting trajectory execution
+		for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
+			RobotArm::IDType id = msg_index_to_model_index[joint_i];
+			uint8_t moving, error, brake, foo;
+			float foofl;
+			arm_->getModuleStatus(id, foo, moving, foo, foo, error, brake, foo, foo, foo, foofl);
+			if(moving || error) {
+				arm_->normalStopAll();
+				ROS_ERROR("Arm in error state or moving, rejecting trajectory action.");
+				as_->setAborted();
+				return;
+			}
+		}
+		ROS_INFO("Arm in valid state, starting trajectory..");
+
 
 		// init feedback message
 		feedback_.joint_names = traj.joint_names;
-		int num_of_joints = traj.joint_names.size();
 		feedback_.desired.positions.resize(num_of_joints);
 		feedback_.desired.velocities.resize(num_of_joints);
 		feedback_.desired.accelerations.resize(num_of_joints);
@@ -185,131 +216,158 @@ public:
 		feedback_.error.velocities.resize(num_of_joints);
 		feedback_.error.accelerations.resize(num_of_joints);
 
+		const ros::Time traj_start_time = ros::Time::now();
+
+		////////////
 		// for each trajectory step...
 		unsigned int steps = traj.points.size();
 		for (unsigned int step_i = 0; step_i < steps; ++step_i) {
 
 			// check that preempt has not been requested by the client
 			if (as_->isPreemptRequested() || !ros::ok()) {
-				ROS_INFO("%s: Preempted", action_name_.c_str());
-				// set the action state to preempted
-				as_->setPreempted();
-				success = false;
 				arm_->normalStopAll();
-				break;
+				ROS_INFO("%s: Preempted", action_name_.c_str());
+				as_->setPreempted();
+				return;
 			}
 
+			// check no module is in error state
+			for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
+				RobotArm::IDType id = msg_index_to_model_index[joint_i];
+				uint8_t error, foo;
+				float foofl;
+				arm_->getModuleStatus(id, foo, foo, foo, foo, error, foo, foo, foo, foo, foofl);
+				if(error) {
+					arm_->normalStopAll();
+					ROS_ERROR("Arm in error state, aborting trajectory action.");
+					as_->setAborted();
+					return;
+				}
+			}
 
 			// get the step target
-			const trajectory_msgs::JointTrajectoryPoint& trajStep = traj.points[step_i];
-			feedback_.desired = trajStep;
+			const trajectory_msgs::JointTrajectoryPoint& traj_step = traj.points[step_i];
+			feedback_.desired = traj_step;
 
-			ROS_INFO_STREAM("Trajectory thread executing step "<<step_i<<"+1/"<<steps<<" until "<<trajStep.time_from_start<<" s / "<<(trajStartTime+trajStep.time_from_start));
+			ROS_INFO_STREAM("Trajectory thread executing step "<<step_i<<"+1/"<<steps<<" until "<<traj_step.time_from_start<<" s");
 
-			// for each joint in step...
-			for (unsigned int joint_i = 0; joint_i < traj.joint_names.size(); ++joint_i) {
+			////////////
+			// for each joint in step... move
+			for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
 
-				int id = joints_name_to_number_map_[traj.joint_names[joint_i]];
+				RobotArm::IDType id = msg_index_to_model_index[joint_i];
+				float acceleration = traj_step.accelerations[joint_i];
+				float velocity = traj_step.velocities[joint_i];
+				float position = traj_step.positions[joint_i];
 
-				float acceleration = trajStep.accelerations[joint_i];
-				float velocity = trajStep.velocities[joint_i];
-				float position = trajStep.positions[joint_i];
+//				ROS_DEBUG_STREAM("Step for module "<<id<<": "<<setiosflags(ios::fixed)<<velocity<<" rad/s, "<<acceleration<<" rad/s*s, "<<position<<" rad");
 
-//				ROS_INFO_STREAM("Moving module "<<id<<" with "<</*setiosflags(ios::fixed)<<*/ velocity<<" rad/s and "<<acceleration<<" rad/s*s to "<<position<<" rad");
-
-
-/// don't go below +- def
-#define SIGN_TOLERANT_MAX(value, def)	( (value)==0 ? 0 : \
-											( \
-												(value)>0 ? \
-													std::max((value),  (def)) : \
-													std::min((value), -(def)) \
-											) \
-										)
-/// don't ...
-#define SIGN_TOLERANT_CUT(value, lim)	( (value)==0 ? 0 : \
-											( \
-												(value)>0 ? \
-													( (value) >  (lim) ? (value) : (0) ) : \
-													( (value) < -(lim) ? (value) : (0) ) \
-											) \
-										)
-
-//				velocity = SIGN_TOLERANT_CUT(velocity, TOO_SLOW);
-//				velocity = SIGN_TOLERANT_MAX(velocity, SLOWEST_REASONABLE_JOINT_SPEED);
-//				acceleration = SIGN_TOLERANT_MAX(acceleration, 0.43f);
-				acceleration = 0.21;
-
-				if(step_i == steps-1) {
-					velocity = SLOWEST_REASONABLE_JOINT_SPEED;
+				if (isnanf(acceleration) || isnanf(velocity) || isnanf(position)) {
+					arm_->normalStopAll();
+					ROS_ERROR("Received NAN in trajectory step! Aborting trajectory action.");
+					ROS_ERROR_STREAM(traj);
+					as_->setAborted();
+					return;
 				}
 
-//				if(std::abs(velocity) < TOO_SLOW) {
-//					ROS_INFO_STREAM("Skipping module "<<id<<" due to too low velocity");
-//				}
-//				else {
-				ROS_INFO_STREAM("Moving module "<<id<<" with "<</*setiosflags(ios::fixed)<<*/ velocity<<" rad/s and "<<acceleration<<" rad/s*s to "<<position<<" rad");
+				if(step_i == steps-1) {
+//					ROS_INFO("Last step, moving to position instead of with velocity.");
+					velocity = 0.05;
+					arm_->setVelocity(id, velocity);
+					arm_->movePosition(id, position);
+				}
+				else if(abs(velocity) < TOO_SLOW) {
+					// make joints near step goal reach that goal via position
+					// as the velocity might be too slow already
+					ROS_INFO_STREAM("Velocity for module "<<id<<" to close to zero to move with velocity, therefore moving to position with fix velocity.");
+					velocity = 0.05;
+					arm_->setVelocity(id, velocity);
+					arm_->movePosition(id, position);
+				}
+				else {
+					arm_->moveVelocity(id, velocity);
+				}
+			}
 
-#if SCHUNK_NOT_AMTEC != 0
-				// TODO schunk option of trajectory action callback
-//				arm_->moveVelocity(id, velocity);
-#else
-				arm_->setAcceleration(id, acceleration);
-				arm_->setVelocity(id, velocity);
-				arm_->movePosition(id, position);
-//				arm_->moveVelocity(id, velocity);	TODO choose this if the velocity and time are calculated precisely
-
-//				if(step_i == steps-1) {
-//					ROS_INFO("LAST STEP, moving to position instead of with velocity.");
-//					arm_->movePosition(id, position);
-//				}
-//				else {
-////					ROS_INFO("Velocity move.");
-//					arm_->moveVelocity(id, velocity);
-//				}
-#endif
-//				}
-
+			// for each joint in step... feedback
+			for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
 				// fill the joint individual feedback part
-				feedback_.actual.positions[id] = arm_->getPosition(id);
-				feedback_.actual.velocities[id] = arm_->getVelocity(id);	// Note: not supported in SchunkProtocol
-//				feedback_.actual.accelerations[id] = arm_->manipulator_.getModules().at(id).status_acc / max_acceleration?; TODO cannot know acceleration status
+				RobotArm::IDType id = msg_index_to_model_index[joint_i];
+				feedback_.actual.positions[joint_i] = arm_->getPosition(id);
+				feedback_.actual.velocities[joint_i] = arm_->getVelocity(id);	// Note: not supported in SchunkProtocol
 			}
 
 			// publish the feedback
 			feedback_.header.stamp = ros::Time::now();
-			feedback_.actual.time_from_start = ros::Time::now() - trajStartTime;
+			feedback_.actual.time_from_start = feedback_.header.stamp - traj_start_time;
 			as_->publishFeedback(feedback_);
 
 			// sleep until step time has passed
-			ros::Time::sleepUntil(trajStartTime + trajStep.time_from_start);
+			ros::Time step_end_time = traj_start_time + traj_step.time_from_start;
+			if(step_end_time <= ros::Time::now())
+				ROS_WARN("Trajectory follower to slow, has to sleep a negative duration!");
+			else
+				ros::Time::sleepUntil(step_end_time);
+
+			// TODO: what about a check if joints have moved beyond the goal and stop them?
+
+//			// the arm is too slow, wait until each joint is near its goal
+//	note: this does not work (unless fixed) when using moveVelocity, as the joint
+//	could have passed the step goal, in which case waiting would be disastrous
+//			ROS_INFO("Waiting for arm to reach trajectory step..");
+//			bool all_joints_near_goal;
+//			do {
+//				ros::WallDuration(0.06).sleep();
+//				all_joints_near_goal = true;
+//				for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
+//					RobotArm::IDType id = msg_index_to_model_index[joint_i];
+//
+//					float position_goal = traj_step.positions[joint_i];
+//					float position_current = arm_->getPosition(id);
+//					float position_deviation = std::abs(position_goal - position_current);
+//
+//					if(position_deviation > 0.1) {
+//						ROS_INFO_STREAM("Module "<<id<<" not yet near goal: deviation="<<position_deviation<<
+//								" goal="<<position_goal<<" current="<<position_current<<" rad");
+//						all_joints_near_goal = false;
+//						break;
+//					}
+//				}
+//
+//				// check that preempt has not been requested by the client
+//				if (as_->isPreemptRequested() || !ros::ok()) {
+//					ROS_INFO("%s: Preempted", action_name_.c_str());
+//					// set the action state to preempted
+//					as_->setPreempted();
+//					arm_->normalStopAll();
+//					return;
+//				}
+//			} while(!all_joints_near_goal);
+
 		}//for each trajectory step...
 
-		if(success) {
-			ROS_INFO("Trajectory done, waiting for joints to stop...");
-			bool all_joints_stopped;
-			do {
-				ros::WallDuration(0.06).sleep();
-				all_joints_stopped = true;
-				for (unsigned int joint_i = 0; joint_i < traj.joint_names.size(); ++joint_i) {
-					uint8_t moving, brake, foo;
-					float foofl;
-					arm_->getModuleStatus(joint_i, foo, moving, foo, foo, foo, brake, foo, foo, foo, foofl);
-//					if(moving) {
-					if(!brake) {
-						all_joints_stopped = false;
-						break;
-					}
-//					if(arm_->manipulator_.getModules().at(joint_i).status_vel == 0)
-//						all_joints_stopped = false;
-				}
-			} while (!all_joints_stopped);
 
-			result_.error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
-			ROS_INFO("%s: Succeeded", action_name_.c_str());
-			// set the action state to succeeded
-			as_->setSucceeded(result_);
-		}
+		ROS_INFO("Trajectory done, waiting for joints to stop...");
+		bool all_joints_stopped;
+		do {
+			ros::WallDuration(0.06).sleep();
+			all_joints_stopped = true;
+			for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
+				RobotArm::IDType id = msg_index_to_model_index[joint_i];
+				uint8_t moving, brake, foo;
+				float foofl;
+				arm_->getModuleStatus(id, foo, moving, foo, foo, foo, brake, foo, foo, foo, foofl);
+				if(moving) {
+					all_joints_stopped = false;
+					break;
+				}
+			}
+		} while (!all_joints_stopped);
+
+		result_.error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
+		ROS_INFO("%s: Succeeded", action_name_.c_str());
+		// set the action state to succeeded
+		as_->setSucceeded(result_);
 	}
 
 
@@ -336,7 +394,7 @@ private:
 			//now apply speed to each joint
 			for (unsigned int joint_i = 0; joint_i < traj_.joint_names.size(); ++joint_i) {
 
-				unsigned int id = joints_name_to_number_map_[traj_.joint_names[joint_i]];
+				RobotArm::IDType id = joints_name_to_number_map_[traj_.joint_names[joint_i]];
 				float velocity = point.velocities[joint_i];
 
 				ROS_INFO_STREAM("Moving module "<<id<<" with "<<velocity<<" rad/s = "<<RAD_TO_DEG(velocity)<<" deg/s");
@@ -369,7 +427,7 @@ private:
 	}
 
 	RobotArm* arm_;
-	std::map<std::string, unsigned int> joints_name_to_number_map_;
+	std::map<std::string, RobotArm::IDType> joints_name_to_number_map_;
 	trajectory_msgs::JointTrajectory traj_;
 	bool run_;
 	bool waiting_;
@@ -586,7 +644,7 @@ private:
 		// and not all types must be filled
 		for (uint i = 0; i < data.get()->name.size(); ++i) {
 			string joint_name = data.get()->name[i];
-			int joint_number = joints_name_to_number_map_[joint_name];
+			RobotArm::IDType joint_number = joints_name_to_number_map_[joint_name];
 			ROS_INFO_STREAM("cb_PositionControl: joint "<<joint_name<<" (#"<<joint_number<<")");
 
 			arm_->setCurrentsToMax();
@@ -614,7 +672,7 @@ private:
 		// and not all types must be filled
 		for (uint i = 0; i < data.get()->name.size(); ++i) {
 			string joint_name = data.get()->name[i];
-			int joint_number = joints_name_to_number_map_[joint_name];
+			RobotArm::IDType joint_number = joints_name_to_number_map_[joint_name];
 			ROS_INFO_STREAM("cb_VelocityControl: joint "<<joint_name<<" (#"<<joint_number<<")");
 
 //			m_powerCube.setCurrentsToMax();
@@ -646,6 +704,7 @@ private:
 
 private:
 	void publishingLoop(ros::Rate loop_rate) {
+		// TODO: convert to callback
 		while (node_handle_.ok()) {
 			publishCurrentJointState();
 			publishCurrentSchunkStatus();
@@ -665,9 +724,8 @@ private:
 
 	void publishCurrentSchunkStatus() {
 		std::vector<metralabs_msgs::SchunkJointStatus>::iterator it;
-		uint module_number;
 		for (it = current_SchunkStatus_.joints.begin(); it != current_SchunkStatus_.joints.end(); ++it) {
-			module_number = joints_name_to_number_map_[it->jointName];
+			RobotArm::IDType module_number = joints_name_to_number_map_[it->jointName];
 			arm_->getModuleStatus(module_number, it->referenced, it->moving, it->progMode, it->warning,
 					it->error, it->brake, it->moveEnd, it->posReached, it->errorCode, it->current);
 		}
@@ -680,7 +738,7 @@ private:
 	RobotArm* arm_;
 	urdf::Model arm_model_;	// A parsing of the model description
 	std::vector<boost::shared_ptr<urdf::Joint> > joints_list_;
-	std::map<std::string, unsigned int> joints_name_to_number_map_;
+	std::map<std::string, RobotArm::IDType> joints_name_to_number_map_;
 
 	sensor_msgs::JointState current_JointState_;
 	metralabs_msgs::SchunkStatus current_SchunkStatus_;

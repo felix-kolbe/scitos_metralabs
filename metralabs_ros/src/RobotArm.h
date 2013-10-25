@@ -15,7 +15,7 @@
 class RobotArm : private boost::noncopyable {
 
 public:
-	typedef uint8_t IDType;
+	typedef uint_fast16_t IDType; // avoid char-typedef'ed uint8_t
 
 
 	RobotArm(IDType id_offset = 0)
@@ -76,8 +76,9 @@ public:
 
 
 	// TODO maybe replace those uint8_t with bool
-	virtual void getModuleStatus(int module_id, uint8_t& referenced, uint8_t& moving, uint8_t& progMode, uint8_t& warning,
-			uint8_t& error, uint8_t& brake, uint8_t& moveEnd, uint8_t& posReached, uint8_t& errorCode, float& current) = 0;
+	virtual void getModuleStatus(IDType module_id, uint8_t& referenced, uint8_t& moving,
+			uint8_t& prog_mode, uint8_t& warning, uint8_t& error, uint8_t& brake,
+			uint8_t& move_end, uint8_t& pos_reached, uint8_t& error_code, float& current) = 0;
 
 
 	unsigned int getModulesCount() const {
