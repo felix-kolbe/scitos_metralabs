@@ -249,7 +249,7 @@ ScitosBase::ScitosBase(const char* config_file, int pArgc, char* pArgv[], ros::N
 	// update config to current hardware state
 	metralabs_ros::ScitosG5Config config;
 	getFeatures(config);	// The first time the read config is totally wrong, maybe it's the previous state from rosparam
-	ROS_INFO_STREAM("This is what the first read gives... " << config.EBC1_Enable24V);
+//	ROS_INFO_STREAM("This is what the first read gives... " << config.EBC1_Enable24V);
 //	getFeatures(config);	// It's no timing issue as far as I tested it. 		TODO fix or proof as stable..
 
 	// mutex needed for dynreconf.updateConfig, see non existent manual, eh I mean source
@@ -336,10 +336,9 @@ void ScitosBase::odometryCallbackHandler() {
 	MTime time;
 	Pose pose;
 	Velocity velocity;
-	float mileage;
 
 	odometry_data_->readLock();
-	odometry_data_->getData(pose, velocity, mileage);
+	odometry_data_->getData(pose, velocity);
 	time = odometry_data_->getTimeStamp();
 	odometry_data_->readUnlock();
 
@@ -506,33 +505,28 @@ void ScitosBase::bumperDataCallbackHandler() {
 	MTime timestamp = odometry_data_->getTimeStamp();
 	bumper_data_->readUnlock();
 
-	bool bumper_pressed = false;
-	bool motor_stop = false;
+#define BUMPER_CODE_FLAGS_EMPTY   0x00
+#define BUMPER_CODE_FLAG_NORMAL						(1<<0)
+#define BUMPER_CODE_FLAG_MOTOR_STOPPED				(1<<1)
+#define BUMPER_CODE_FLAG_FREE_RUN_ACTIVE			(1<<2)
+#define BUMPER_CODE_FLAG_EMERGENCY_BUTTON_PRESSED	(1<<3)
+#define BUMPER_CODE_FLAG_BUMPER_PRESSED				(1<<4)
+#define BUMPER_CODE_FLAG_BUS_ERROR					(1<<5)
+#define BUMPER_CODE_FLAG_STALL_MODE_DETECTED		(1<<6)
+#define BUMPER_CODE_FLAG_INTERNAL_ERROR				(1<<7)
 
-#define BUMPER_CODE_FREE   0x00
-#define BUMPER_CODE_FLAG_PUSHED 0x10
-#define BUMPER_CODE_FLAG_LOCKED 0x02
-#define BUMPER_CODE_KNOWN_FLAGS (BUMPER_CODE_FLAG_PUSHED | BUMPER_CODE_FLAG_LOCKED)
+	// map all bumper parts' flags together
+	uint16_t flags = 0;
+	for (BumperData::Vector::const_iterator it = bumper_values.begin(); it != bumper_values.end(); ++it)
+		flags |= *it;
 
-	for (BumperData::Vector::const_iterator it = bumper_values.begin(); it != bumper_values.end(); ++it) {
-		uint16_t flags = *it;
-		uint16_t flags_left = flags & ~BUMPER_CODE_KNOWN_FLAGS;
+	bool bumper_pressed = flags & BUMPER_CODE_FLAG_BUMPER_PRESSED;
+	bool motor_stop = flags & BUMPER_CODE_FLAG_MOTOR_STOPPED;
 
-		if (flags_left) {
-			ROS_WARN("BumperData has unknown bits set: 0x%02X all flags: 0x%02X", flags_left, flags);
-		}
-
-		if (flags & BUMPER_CODE_FLAG_PUSHED) {
-			bumper_pressed = true;
-			motor_stop = true;
-			break;  // no next bumper part would change any value
-		}
-		else if (flags & BUMPER_CODE_FLAG_LOCKED) {
-			motor_stop = true;
-		}
-
-		ROS_DEBUG("BumperData: 0x%02X bumper_pressed: %d motor_stop: %d", flags, bumper_pressed, motor_stop);
-	}
+	if (bumper_pressed)			// remove me!
+		// make sure code and people can rely on bumper_pressed
+		ROS_ASSERT_MSG(motor_stop,
+				"Bumper: MOTOR_STOP is not set although BUMPER_PRESSED is set");
 
 	metralabs_msgs::ScitosG5Bumper bumper_msg;
 	bumper_msg.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
@@ -543,23 +537,37 @@ void ScitosBase::bumperDataCallbackHandler() {
 }
 
 void ScitosBase::diagnosticsPublishingLoop(ros::Rate loop_rate) {
+	std::stringstream ss; // policy: reset ss before using, but clear formatting afterwards
+	ss.setf(ss.fixed);
+
 	// send diagnostics message for battery state but with lower frequency
 	// robot itself publishes with 10 Hz into Blackboard
 	while (node_handle_.ok()) {
-		battery_state_data_->readLock();
-		MString name = static_cast<BatteryState*>(battery_state_data_)->getName();
-		float voltage = battery_state_data_->getVoltage();
-		float current = battery_state_data_->getCurrent();
-		int16_t charge_state = battery_state_data_->getChargeState();
-		int16_t remaining_time = battery_state_data_->getRemainingTime();
-		int16_t charger_status= battery_state_data_->getChargerStatus();
-		MTime timestamp = battery_state_data_->getTimeStamp();
-		battery_state_data_->readUnlock();
+		diagnostic_msgs::DiagnosticArray diag_array;
+		// only one timestamp for a DiagArray, not for each status
+		// but we won't send statii twice
+		diag_array.header.stamp = ros::Time::now();
 
-		diagnostic_msgs::DiagnosticStatus battery_status;
-		battery_status.name = "Scitos G5: Battery";
-		battery_status.message = "undefined";
-		battery_status.hardware_id = name;
+		/// compose battery diagnostics
+		{
+			battery_state_data_->readLock();
+			MString name = static_cast<BatteryState*>(battery_state_data_)->getName();
+			MTime timestamp = battery_state_data_->getTimeStamp();
+			float voltage = battery_state_data_->getVoltage();
+			float current = battery_state_data_->getCurrent();
+			int16_t charge_state = battery_state_data_->getChargeState();
+			int16_t remaining_time = battery_state_data_->getRemainingTime();
+			int16_t charger_status= battery_state_data_->getChargerStatus();
+			battery_state_data_->readUnlock();
+
+			static MTime last_timestamp = 0;
+			if (timestamp > last_timestamp) {
+				last_timestamp = timestamp;
+
+				diagnostic_msgs::DiagnosticStatus battery_status;
+				battery_status.hardware_id = name;
+				battery_status.name = "Scitos G5: Battery";
+				battery_status.message = "undefined";
 
 // TODO do me parameters
 #define 	VOLTAGE_ERROR_LEVEL	23		// and below
@@ -568,54 +576,171 @@ void ScitosBase::diagnosticsPublishingLoop(ros::Rate loop_rate) {
 #define 	VOLTAGE_FULL_LEVEL	28.8	// and above
 #define 	CHARGER_PLUGGED 	1
 
-		if(voltage < VOLTAGE_ERROR_LEVEL && charger_status != CHARGER_PLUGGED)
-			battery_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
-		else if(voltage < VOLTAGE_WARN_LEVEL && charger_status != CHARGER_PLUGGED)
-			battery_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
-		else
-			battery_status.level = diagnostic_msgs::DiagnosticStatus::OK;
+				// set level
+				if(voltage < VOLTAGE_ERROR_LEVEL && charger_status != CHARGER_PLUGGED)
+					battery_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
+				else if(voltage < VOLTAGE_WARN_LEVEL && charger_status != CHARGER_PLUGGED)
+					battery_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
+				else
+					battery_status.level = diagnostic_msgs::DiagnosticStatus::OK;
 
-		// build text message
-		battery_status.message = "High";
-		if(voltage < VOLTAGE_MID_LEVEL)
-			battery_status.message = "Mid";
-		if(voltage < VOLTAGE_WARN_LEVEL)
-			battery_status.message = "Low";
-		if(voltage < VOLTAGE_ERROR_LEVEL)
-			battery_status.message = "Depleted";
-		battery_status.message += charger_status == CHARGER_PLUGGED ? ", charging" : ", discharging";
-		if(voltage >= VOLTAGE_FULL_LEVEL)
-			battery_status.message = "Fully charged";
+				// set text message
+				if(voltage >= VOLTAGE_FULL_LEVEL)
+					battery_status.message = "Fully charged";
+				else {
+					battery_status.message = "High";
+					if(voltage < VOLTAGE_MID_LEVEL)
+						battery_status.message = "Mid";
+					if(voltage < VOLTAGE_WARN_LEVEL)
+						battery_status.message = "Low";
+					if(voltage < VOLTAGE_ERROR_LEVEL)
+						battery_status.message = "Depleted";
+					battery_status.message += charger_status == CHARGER_PLUGGED ? ", charging" : ", discharging";
+				}
 
-		// set values
-		battery_status.values.resize(5);
-		std::stringstream ss;
-		battery_status.values[0].key = "Voltage";
-		ss << voltage << " V";
-		battery_status.values[0].value = ss.str();
+				// set detail values
+				battery_status.values.resize(5);
 
-		ss.str("");
-		battery_status.values[1].key = "Current";
-		ss << current << " A";
-		battery_status.values[1].value = ss.str();
+				ss.str("");
+				int prev_prec = ss.precision(3);
+				battery_status.values[0].key = "Voltage";
+				ss << voltage << " V";
+				battery_status.values[0].value = ss.str();
 
-		ss.str("");
-		battery_status.values[2].key = "ChargeState";
-		ss << charge_state << " %";
-		battery_status.values[2].value = ss.str();
+				ss.str("");
+				battery_status.values[1].key = "Current";
+				ss << current << " A";
+				battery_status.values[1].value = ss.str();
+				ss.precision(prev_prec);
 
-		ss.str("");
-		battery_status.values[3].key = "RemainingTime";
-		ss << remaining_time << " min";
-		battery_status.values[3].value = ss.str();
+				ss.str("");
+				battery_status.values[2].key = "ChargeState";
+				ss << charge_state << " %";
+				battery_status.values[2].value = ss.str();
 
-		battery_status.values[4].key = "ChargerStatus";
-		battery_status.values[4].value = charger_status == CHARGER_PLUGGED ? "plugged" : "unplugged";
+				ss.str("");
+				battery_status.values[3].key = "RemainingTime";
+				ss << remaining_time << " min";
+				battery_status.values[3].value = ss.str();
 
-		/// combine and publish statii as array
-		diagnostic_msgs::DiagnosticArray diag_array;
-		diag_array.header.stamp = ros::Time().fromNSec(timestamp.getTimeValue()*1000000);
-		diag_array.status.push_back(battery_status);
+				battery_status.values[4].key = "ChargerStatus";
+				battery_status.values[4].value = charger_status == CHARGER_PLUGGED ? "plugged" : "unplugged";
+
+				diag_array.status.push_back(battery_status);
+			}
+		}
+
+		/// compose bumper diagnostic
+		{
+			bumper_data_->readLock();
+			MString name = static_cast<BumperData*>(bumper_data_)->getName();
+			BumperData::Vector bumper_values = bumper_data_->getBumperData();
+			MTime timestamp = odometry_data_->getTimeStamp();
+			bumper_data_->readUnlock();
+
+			static MTime last_timestamp = 0;
+			if (timestamp > last_timestamp) {
+				last_timestamp = timestamp;
+
+				diagnostic_msgs::DiagnosticStatus bumper_status;
+				bumper_status.hardware_id = name;
+				bumper_status.name = "Scitos G5: Bumper";
+				bumper_status.message = "undefined";
+
+				// map all bumper parts' flags together
+				uint16_t flags = 0;
+				for (BumperData::Vector::const_iterator it = bumper_values.begin(); it != bumper_values.end(); ++it)
+					flags |= *it;
+
+				// set message and values
+				// note that these cases are primarily ordered with escalating status
+				// level and secondarily with message importance, because they override
+				// each other and the most important should be in the message
+				ss.str("");
+				if (flags == BUMPER_CODE_FLAGS_EMPTY || flags & BUMPER_CODE_FLAG_NORMAL) {
+					ss << "Normal ";
+					bumper_status.message = "Normal";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::OK;
+				}
+				if (flags & BUMPER_CODE_FLAG_FREE_RUN_ACTIVE) {
+					ss << "FreeRunActive ";
+					bumper_status.message = "FreeRunActive";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::OK;
+				}
+				if (flags & BUMPER_CODE_FLAG_MOTOR_STOPPED) {
+					ss << "MotorStop ";
+					bumper_status.message = "MotorStop";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
+				}
+				if (flags & BUMPER_CODE_FLAG_BUMPER_PRESSED) {
+					ss << "BumperPressed ";
+					bumper_status.message = "BumperPressed";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
+				}
+				if (flags & BUMPER_CODE_FLAG_EMERGENCY_BUTTON_PRESSED) {
+					ss << "EmergencyButtonPressed ";
+					bumper_status.message = "EmergencyButtonPressed";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::WARN;
+				}
+				if (flags & BUMPER_CODE_FLAG_STALL_MODE_DETECTED) {
+					ss << "StallModeDetected ";
+					bumper_status.message = "StallModeDetected";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
+				}
+				if (flags & BUMPER_CODE_FLAG_BUS_ERROR) {
+					ss << "BusError ";
+					bumper_status.message = "BusError";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
+				}
+				if (flags & BUMPER_CODE_FLAG_INTERNAL_ERROR) {
+					ss << "InternalError ";
+					bumper_status.message = "InternalError";
+					bumper_status.level = diagnostic_msgs::DiagnosticStatus::ERROR;
+				}
+				diagnostic_msgs::KeyValue diag_bumper_flags;
+				diag_bumper_flags.key = "Active flags";
+				diag_bumper_flags.value = ss.str();
+				bumper_status.values.push_back(diag_bumper_flags);
+
+				diag_array.status.push_back(bumper_status);
+			}
+		}
+
+		/// compose battery diagnostics
+		{
+			odometry_data_->readLock();
+			MString name = static_cast<OdometryData*>(odometry_data_)->getName();
+			MTime timestamp = odometry_data_->getTimeStamp();
+			float mileage = odometry_data_->getMileage();
+			odometry_data_->readUnlock();
+
+			static MTime last_timestamp = 0;
+			if (timestamp > last_timestamp) {
+				last_timestamp = timestamp;
+
+				diagnostic_msgs::DiagnosticStatus odometry_status;
+				odometry_status.hardware_id = name;
+				odometry_status.name = "Scitos G5: Mileage";
+
+				ss.str("");
+				int prev_prec = ss.precision(1);
+				ss << mileage << " m";
+				ss.precision(prev_prec);
+				odometry_status.message = ss.str();
+
+				ss.str("");
+				diagnostic_msgs::KeyValue kv_mileage;
+				kv_mileage.key = "Mileage";
+				ss << mileage << " meters";
+				kv_mileage.value = ss.str();
+
+				odometry_status.values.push_back(kv_mileage);
+
+				diag_array.status.push_back(odometry_status);
+			}
+		}
+
+		/// publish statii combined as array
 		diagnostics_publisher_.publish(diag_array);
 
 		// This will adjust as needed per iteration
