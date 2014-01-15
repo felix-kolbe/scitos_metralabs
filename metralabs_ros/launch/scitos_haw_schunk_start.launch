@@ -4,13 +4,9 @@
 		
 	<!-- joint_state_publisher: produces joints states for mimicked joints -->
 	<node pkg="joint_state_publisher" type="joint_state_publisher" name="schunk_state_de_mimick_er">
-	    <!--<param name="source_list" value="[/schunk/pre_mimic_joint_states]" />-->
 	    <rosparam param="source_list">['/schunk/pre_mimic_joint_states']</rosparam>
-	    
-	    <!-- this one is only because the official joint_state_publisher doesn't handle URDF mimic joints -->
-	    <rosparam param="dependent_joints">{GR_Fneg: {parent: GR_Fpos, factor: 0.5 }}</rosparam>
-	    
 	    <param name="rate" type="int" value="30" />
+	    <param name="publish_default_positions" type="bool" value="False" />
 	</node>
 		
 	 <!-- Robot state publisher: publishes tf information regarding the position of the arm -->
