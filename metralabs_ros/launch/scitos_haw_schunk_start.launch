@@ -27,6 +27,7 @@
 	    <param name="scitos_config_file" type="string" value="/home/demo/SCITOS-G5_without_Head_config.xml" />
 	    <param name="robot_arm_class" type="string" value="LWA3ArmUASHH" />
 	    <remap from="joint_states" to="/schunk/pre_mimic_joint_states" />
+	    <remap from="cmd_vel" to="/cmd_vel_prio" />
 	</node>
 
 </launch>
