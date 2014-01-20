@@ -23,9 +23,12 @@
 
 #include "RobotArm.h"
 #include "AmtecProtocolArm.h"
-#include "SchunkProtocolArm.h"
+//#include "SchunkProtocolArm.h"
 #include "LWA3ArmUASHH.h"
-#include "PowerCubeArmUUISRC.h"
+//#include "PowerCubeArmUUISRC.h"
+
+#include <util/MTime.h>
+#include <util/MTimeSpan.h>
 
 using namespace std;
 
@@ -456,7 +459,9 @@ private:
 
 
 
-class SchunkServer : private boost::noncopyable {
+class SchunkServer :
+		public AmtecManipulatorMod::ModuleStatusCallbackMod/*,
+		private boost::noncopyable*/ {
 public:
 	SchunkServer(ros::NodeHandle &nh) :
 		node_handle_(nh),
@@ -472,6 +477,29 @@ public:
 		trajectory_executer_thread_.join();
 		if(arm_ != NULL)
 			delete arm_;
+	}
+
+
+	virtual void moduleStatusUpdate(uint8_t id, float pos, float vel, float current,
+			AmtecManipulatorMod::StatusBits status, MTime last_update, bool is_running) {
+//		ROS_INFO("moduleStatusUpdate #%d % 2f % 2f %2f %X", id, pos, vel, current, status.value);
+		static MetraLabs::base::MTimeSpan joints_timeout(300);
+		static MetraLabs::base::MTimeSpan last_status_age;
+
+		MetraLabs::base::MTimeSpan status_age = MetraLabs::base::MTime::now() - last_update;
+		if(status_age > joints_timeout) {
+			ROS_WARN_STREAM("Joints status update too old! " << status_age.getTimeSpan()
+					<< " ms (thread is running: " << is_running << ")"); // Quitting..
+//			ROS_ERROR_STREM("Joints status was already ")
+//			ros::shutdown(); // FATAL does not cleanly shutdown the robot
+		}
+//		else
+//			ROS_INFO_STREAM("Joints status update age: " << status_age.getTimeSpan() << " ms");
+
+		if(!is_running) {
+			ROS_ERROR("Joints update thread is not running! Quitting..");
+			ros::shutdown(); // FATAL does not cleanly shutdown the robot
+		}
 	}
 
 private:
@@ -490,12 +518,12 @@ private:
 		// TODO implement real class loader
 		if(robot_arm_class == "AmtecProtocolArm")
 			arm_ = new AmtecProtocolArm();
-		else if(robot_arm_class == "SchunkProtocolArm")
-			arm_ = new SchunkProtocolArm();
+//		else if(robot_arm_class == "SchunkProtocolArm")
+//			arm_ = new SchunkProtocolArm();
 		else if(robot_arm_class == "LWA3ArmUASHH")
 			arm_ = new LWA3ArmUASHH();
-		else if(robot_arm_class == "PowerCubeArmUUISRC")
-			arm_ = new PowerCubeArmUUISRC();
+//		else if(robot_arm_class == "PowerCubeArmUUISRC")
+//			arm_ = new PowerCubeArmUUISRC();
 		else {
 			ROS_FATAL_STREAM("Cannot load unknown robot arm class: "<<robot_arm_class);
 			exit(1);
@@ -585,6 +613,9 @@ private:
 		trajectory_command_subscriber_ = node_handle_.subscribe("trajectory_command", 1, &SchunkServer::cb_commandTrajectory, this);
 
 		boost::thread(&SchunkServer::publishingLoop, this, ros::Rate(30));
+
+		AmtecProtocolArm* ap_arm = static_cast<AmtecProtocolArm*>(arm_);
+		ap_arm->getManipulator().addModuleStatusCallback(this, 0);
 
 		ROS_INFO("SchunkServer Ready");
 
@@ -720,8 +751,12 @@ private:
 	}
 
 private:
+
+
 	void publishingLoop(ros::Rate loop_rate) {
 		// TODO: convert to publisher
+//		ros::Duration(10).sleep();
+		ROS_WARN("(TEST) from now on I'm publishing joint states!");
 		while (node_handle_.ok()) {
 			publishCurrentJointState();
 			publishCurrentSchunkStatus();

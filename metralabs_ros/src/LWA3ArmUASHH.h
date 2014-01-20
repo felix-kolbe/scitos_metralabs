@@ -24,7 +24,7 @@ public:
 
 	virtual int ackJoint(IDType id) {
 		// the gripper has to be reset nicely
-		const AmtecManipulator::ModuleConfig *moduleConfig;
+		const AmtecManipulatorMod::ModuleConfig *moduleConfig;
 		manipulator_.getModuleConfig(id + id_offset_, moduleConfig);
 
 		if(id == GRIPPER_ID && moduleConfig->linear) {

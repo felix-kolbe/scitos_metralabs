@@ -9,7 +9,8 @@
 
 #include <MetraLabsBase.h>
 #include <base/Errors.h>
-#include <hardware/AmtecManipulator.h>
+// #include <hardware/AmtecManipulator.h>
+#include "AmtecManipulator.h" // the modded version
 
 #include "RobotArm.h"
 
@@ -74,13 +75,13 @@ public:
 
 
 	virtual int movePosition(IDType id, float position) {
-		return manipulator_.execMotion(id + id_offset_, AmtecManipulator::MOTION_FRAMP_MODE, position, 0);
+		return manipulator_.execMotion(id + id_offset_, AmtecManipulatorMod::MOTION_FRAMP_MODE, position, 0);
 	}
 	virtual int movePositionDuration(IDType id, float position, uint16_t msecs) {
-		return manipulator_.execMotion(id + id_offset_, AmtecManipulator::MOTION_FSTEP_MODE, position, msecs);
+		return manipulator_.execMotion(id + id_offset_, AmtecManipulatorMod::MOTION_FSTEP_MODE, position, msecs);
 	}
 	virtual int moveVelocity(IDType id, float velocity) {
-		return manipulator_.execMotion(id + id_offset_, AmtecManipulator::MOTION_FVEL_MODE, velocity, 0);
+		return manipulator_.execMotion(id + id_offset_, AmtecManipulatorMod::MOTION_FVEL_MODE, velocity, 0);
 	}
 
 
@@ -88,7 +89,7 @@ public:
 	virtual void getModuleStatus(IDType module_id, uint8_t& referenced, uint8_t& moving,
 			uint8_t& prog_mode, uint8_t& warning, uint8_t& error, uint8_t& brake,
 			uint8_t& move_end, uint8_t& pos_reached, uint8_t& error_code, float& current) {
-		const AmtecManipulator::ModuleConfig *module_config;
+		const AmtecManipulatorMod::ModuleConfig *module_config;
 		manipulator_.getModuleConfig(module_id + id_offset_, module_config);
 
 		brake = module_config->status_flags.flags.brake == 1;
@@ -104,12 +105,12 @@ public:
 	}
 
 
-	const AmtecManipulator& getManipulator() const {
+	AmtecManipulatorMod& getManipulator() {
 		return manipulator_;
 	}
 
 protected:
-	AmtecManipulator manipulator_;
+	AmtecManipulatorMod manipulator_;
 
 };
 
