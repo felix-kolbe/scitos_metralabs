@@ -191,6 +191,8 @@ public:
 		// check arm conditions before starting trajectory execution
 		for (unsigned int joint_i = 0; joint_i < num_of_joints; ++joint_i) {
 			RobotArm::IDType id = msg_index_to_model_index[joint_i];
+
+			// check joint status
 			uint8_t moving, error, brake, foo;
 			float foofl;
 			arm_->getModuleStatus(id, foo, moving, foo, foo, error, brake, foo, foo, foo, foofl);
@@ -200,6 +202,21 @@ public:
 				as_->setAborted();
 				return;
 			}
+
+			// check joint position
+			float MAX_ALLOWED_DEVIANCE = 0.05; // rad
+			float first_step_position = traj.points[0].positions[joint_i];
+			float current_position = arm_->getPosition(id);
+			float actual_difference = first_step_position-current_position;
+			if (abs(actual_difference) > MAX_ALLOWED_DEVIANCE) {
+				arm_->normalStopAll();
+				ROS_ERROR_STREAM("Arm pose and first trajectory step differ to much, "
+						<< "rejecting trajectory action. Joint ID: " << id <<
+						" difference: " << actual_difference << " allowed: " << MAX_ALLOWED_DEVIANCE);
+				as_->setAborted();
+				return;
+			}
+
 		}
 		ROS_INFO("Arm in valid state, starting trajectory..");
 
@@ -704,7 +721,7 @@ private:
 
 private:
 	void publishingLoop(ros::Rate loop_rate) {
-		// TODO: convert to callback
+		// TODO: convert to publisher
 		while (node_handle_.ok()) {
 			publishCurrentJointState();
 			publishCurrentSchunkStatus();
