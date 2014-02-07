@@ -9,7 +9,7 @@
 
     <!-- Node to prioritize different sources of cmd_vel messages -->
     <node pkg="nodelet" type="nodelet" name="nodelet_manager_cmd_vel_mux" args="manager"/>
-    <node pkg="nodelet" type="nodelet" name="cmd_vel_mux" args="load cmd_vel_mux/CmdVelMuxNodelet nodelet_manager_cmd_vel_mux">
+    <node pkg="nodelet" type="nodelet" name="cmd_vel_mux" args="load yocs_cmd_vel_mux/CmdVelMuxNodelet nodelet_manager_cmd_vel_mux">
         <param name="yaml_cfg_file" value="$(find uashh_rvl_helper_files)/config/cmd_vel_mux_scitos_conf.yaml"/>
     </node>
 
