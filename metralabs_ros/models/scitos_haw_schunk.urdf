@@ -59,73 +59,73 @@
   </joint>
   <!-- Links macros -->
   <!-- Joints macros -->
-  <joint name="DH_B_1" type="fixed">
+  <joint name="arm_base_fixing" type="fixed">
     <origin rpy="0 0 0" xyz="-0.075 0 0.583"/>
     <parent link="base_link"/>
-    <child link="DH1"/>
+    <child link="arm_base_link"/>
   </joint>
-  <joint name="DH_1_2" type="revolute">
+  <joint name="arm_joint_1" type="revolute">
     <!-- ~center of base swivel joint ID20 -->
     <!-- the ~center means: both z of this and below added must equal 0.268 to match reality -->
     <origin rpy="0 0 0" xyz="0 0 0.120"/>
-    <parent link="DH1"/>
-    <child link="DH2"/>
+    <parent link="arm_base_link"/>
+    <child link="arm_link_1"/>
     <axis xyz="0 0 -1"/>
     <limit effort="2" lower="-3.141593" upper="3.141593" velocity="0.437"/>
   </joint>
-  <joint name="DH_2_3" type="revolute">
+  <joint name="arm_joint_2" type="revolute">
     <!-- center of first pitch joint ID21 -->
     <origin rpy="1.57079632679 -1.57079632679 3.14159265359" xyz="0 0 0.148"/>
-    <parent link="DH2"/>
-    <child link="DH3"/>
+    <parent link="arm_link_1"/>
+    <child link="arm_link_2"/>
     <axis xyz="0 0 -1"/>
     <limit effort="2" lower="-2.024580" upper="2.024580" velocity="0.438"/>
   </joint>
-  <joint name="DH_3_4" type="revolute">
+  <joint name="arm_joint_3" type="revolute">
     <!-- center of second pitch joint ID22 -->
     <origin rpy="3.14159265359 0 0" xyz="0.400 0 0"/>
-    <parent link="DH3"/>
-    <child link="DH4"/>
+    <parent link="arm_link_2"/>
+    <child link="arm_link_3"/>
     <axis xyz="0 0 -1"/>
     <limit effort="2" lower="-2.740166" upper="2.740166" velocity="0.436"/>
   </joint>
-  <joint name="DH_4_5" type="revolute">
+  <joint name="arm_joint_4" type="revolute">
     <!-- center of third pitch joint ID23 -->
     <origin rpy="3.14159265359 0 0" xyz="0.300 0 0"/>
-    <parent link="DH4"/>
-    <child link="DH5"/>
+    <parent link="arm_link_3"/>
+    <child link="arm_link_4"/>
     <axis xyz="0 0 -1"/>
     <limit effort="2" lower="-2.373644" upper="2.286380" velocity="0.486"/>
   </joint>
-  <joint name="DH_5_6" type="revolute">
+  <joint name="arm_joint_5" type="revolute">
     <!-- center of hand roll joint ID24 -->
     <origin rpy="0 1.57079632679 0" xyz="0.121 0 0"/>
-    <parent link="DH5"/>
-    <child link="DH6"/>
+    <parent link="arm_link_4"/>
+    <child link="arm_link_5"/>
     <axis xyz="0 0 -1"/>
     <limit effort="2" lower="-3.143321" upper="3.143321" velocity="0.872"/>
   </joint>
-  <joint name="DH_6_GR" type="fixed">
+  <joint name="gripper_fixing" type="fixed">
     <origin rpy="0 -1.57079632679 0" xyz="0 0 0.130"/>
-    <parent link="DH6"/>
-    <child link="Gripper"/>
+    <parent link="arm_link_5"/>
+    <child link="gripper"/>
   </joint>
-  <joint name="GR_Fpos" type="prismatic">
+  <joint name="gripper_joint_pos" type="prismatic">
     <origin rpy="3.14159265359 0 0" xyz="0 0 0"/>
-    <parent link="GFneg"/>
-    <child link="GFpos"/>
+    <parent link="gripper_finger_neg"/>
+    <child link="gripper_finger_pos"/>
     <axis xyz="0 0 1"/>
     <limit effort="2" lower="-0.000250" upper="0.068111" velocity="0.08"/>
   </joint>
-  <joint name="GR_Fneg" type="prismatic">
+  <joint name="gripper_joint_neg" type="prismatic">
     <origin rpy="0 0 0" xyz="0.047 0 0"/>
-    <parent link="Gripper"/>
-    <child link="GFneg"/>
+    <parent link="gripper"/>
+    <child link="gripper_finger_neg"/>
     <axis xyz="0 0 1"/>
     <limit effort="2" lower="-0.000250" upper="0.068111" velocity="0.08"/>
-    <mimic joint="GR_Fpos" multiplier="0.5" offset="0"/>
+    <mimic joint="gripper_joint_pos" multiplier="0.5" offset="0"/>
   </joint>
-  <link name="DH1">
+  <link name="arm_base_link">
     <!-- - ->
   <visual>
     <geometry>
@@ -136,7 +136,7 @@
   <!- - -->
   </link>
   <!-- base of arm -->
-  <link name="DH2">
+  <link name="arm_link_1">
     <visual>
       <geometry>
         <cylinder length="0.13" radius="0.05"/>
@@ -150,7 +150,7 @@
     </collision>
   </link>
   <!-- ~center of base swivel joint ID20 -->
-  <link name="DH3">
+  <link name="arm_link_2">
     <visual>
       <geometry>
         <cylinder length="0.13" radius="0.05"/>
@@ -164,7 +164,7 @@
     </collision>
   </link>
   <!-- center of first pitch joint ID21 -->
-  <link name="DH4">
+  <link name="arm_link_3">
     <visual>
       <geometry>
         <cylinder length="0.13" radius="0.05"/>
@@ -178,7 +178,7 @@
     </collision>
   </link>
   <!-- center of second pitch joint ID22 -->
-  <link name="DH5">
+  <link name="arm_link_4">
     <visual>
       <geometry>
         <cylinder length="0.104" radius="0.04"/>
@@ -192,7 +192,7 @@
     </collision>
   </link>
   <!-- center of third pitch joint ID23 -->
-  <link name="DH6">
+  <link name="arm_link_5">
     <visual>
       <geometry>
         <cylinder length="0.078" radius="0.03"/>
@@ -206,7 +206,7 @@
     </collision>
   </link>
   <!-- center of hand roll joint ID24 -->
-  <link name="ConnBase">
+  <link name="arm_base_connector">
     <visual>
       <origin xyz="0 0 0.030"/>
       <geometry>
@@ -222,12 +222,12 @@
   </collision>
 -->
   </link>
-  <joint name="DH1_ConnBase" type="fixed">
+  <joint name="arm_base_link_arm_base_connector" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0"/>
-    <parent link="DH1"/>
-    <child link="ConnBase"/>
+    <parent link="arm_base_link"/>
+    <child link="arm_base_connector"/>
   </joint>
-  <link name="ConnLong1">
+  <link name="arm_link_2_connector">
     <visual>
       <origin xyz="0.2 0 0.061"/>
       <geometry>
@@ -242,7 +242,7 @@
       </geometry>
     </collision>
   </link>
-  <link name="ConnLong2">
+  <link name="arm_link_3_connector">
     <visual>
       <origin xyz="0.15 0 0.061"/>
       <geometry>
@@ -257,17 +257,17 @@
       </geometry>
     </collision>
   </link>
-  <joint name="DH3_ConnLong1" type="fixed">
+  <joint name="arm_link_2_arm_link_2_connector" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0"/>
-    <parent link="DH3"/>
-    <child link="ConnLong1"/>
+    <parent link="arm_link_2"/>
+    <child link="arm_link_2_connector"/>
   </joint>
-  <joint name="DH4_ConnLong2" type="fixed">
+  <joint name="arm_link_3_arm_link_3_connector" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0"/>
-    <parent link="DH4"/>
-    <child link="ConnLong2"/>
+    <parent link="arm_link_3"/>
+    <child link="arm_link_3_connector"/>
   </joint>
-  <link name="Gripper">
+  <link name="gripper">
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
@@ -282,7 +282,7 @@
       </geometry>
     </collision>
   </link>
-  <link name="GFpos">
+  <link name="gripper_finger_pos">
     <visual>
       <!--<origin xyz="${0.047+0.035} 0 ${reflect*(gripper_space+0.010)/2}"/>-->
       <origin xyz="0.035 0 0.01"/>
@@ -294,8 +294,8 @@
       <material name="aluminium"/>
     </visual>
   </link>
-  <!--<xacro:connect parent="Gripper" child="GFpos"/>-->
-  <link name="GFneg">
+  <!--<xacro:connect parent="gripper" child="gripper_finger_pos"/>-->
+  <link name="gripper_finger_neg">
     <visual>
       <!--<origin xyz="${0.047+0.035} 0 ${reflect*(gripper_space+0.010)/2}"/>-->
       <origin xyz="0.035 0 0.01"/>
@@ -307,8 +307,8 @@
       <material name="aluminium"/>
     </visual>
   </link>
-  <!--<xacro:connect parent="Gripper" child="GFneg"/>-->
-  <link name="CameraMount">
+  <!--<xacro:connect parent="gripper" child="gripper_finger_neg"/>-->
+  <link name="camera_mount">
     <visual>
       <origin rpy="0 0 0" xyz="-0.0085 0 -0.003210"/>
       <geometry>
@@ -323,13 +323,13 @@
       </geometry>
     </collision>
   </link>
-  <joint name="Gripper_CameraMount" type="fixed">
+  <joint name="gripper_camera_mount" type="fixed">
     <origin rpy="1.57079632679 0 0" xyz="-0.011 -0.055 0"/>
-    <parent link="Gripper"/>
-    <child link="CameraMount"/>
+    <parent link="gripper"/>
+    <child link="camera_mount"/>
   </joint>
   <!-- Werte berechnet -->
-  <link name="Kinect">
+  <link name="kinect">
     <visual>
       <geometry>
         <box size="0.06 0.28 0.04"/>
@@ -343,11 +343,10 @@
       </geometry>
     </collision>
   </link>
-  <joint name="CameraMount_Kinect" type="fixed">
+  <joint name="camera_mount_kinect" type="fixed">
     <origin rpy="0 0 0" xyz="-0.015 0 0.04"/>
-    <parent link="CameraMount"/>
-    <child link="Kinect"/>
+    <parent link="camera_mount"/>
+    <child link="kinect"/>
   </joint>
   <!-- Werte auf cm vermessen -->
 </robot>
-
