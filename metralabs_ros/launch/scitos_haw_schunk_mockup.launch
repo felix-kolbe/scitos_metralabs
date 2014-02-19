@@ -1,0 +1,10 @@
+<launch>
+
+	<param name="robot_description" command="cat $(find metralabs_ros)/models/scitos_haw_schunk.urdf" />
+
+	<!-- joint_state_publisher: gui to mock up arm -->
+	<node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_states_gui">
+	    <param name="use_gui" type="bool" value="True" />
+	</node>
+
+</launch>
