@@ -35,10 +35,10 @@ echo generating urdf from xacro..
 rosrun xacro xacro.py $xacrofile > ${name}.urdf
 
 echo checking urdf..
-rosrun urdf_parser check_urdf ${name}.urdf
+check_urdf ${name}.urdf
 
 echo generating pdf from urdf..
-rosrun urdf_parser urdf_to_graphiz ${name}.urdf
+urdf_to_graphiz ${name}.urdf
 
 # open pdf if requested and possible
 #echo ${#-1}
