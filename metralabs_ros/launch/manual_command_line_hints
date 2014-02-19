@@ -9,5 +9,9 @@ rosparam set -t  `rospack find metralabs_ros`/models/scitos_haw_only.urdf robot_
 /home/demo/ros_workspace/stacks/scitos_metralabs/metralabs_ros/bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros robot_arm_class:=LWA3ArmUASHH -MDebugLevel 5
 
 
+# valgrind debug ScitosServer
 valgrind --leak-check=yes --track-origins=yes     ../bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros robot_arm_class:=None -MDebugLevel 3
 
+
+# mock joint position via joint_state_publisher
+rosrun joint_state_publisher joint_state_publisher /joint_states:=/schunk/joint_states _/use_gui:=True
