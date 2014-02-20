@@ -1,0 +1,8 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: metralabs_ros
+    relative_path: models/scitos_haw_schunk.urdf
+  SRDF:
+    relative_path: config/scitos_haw_schunk.srdf
+  CONFIG:
+    generated_timestamp: 1392916100
