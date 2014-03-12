@@ -5,4 +5,4 @@ moveit_setup_assistant_config:
   SRDF:
     relative_path: config/scitos_haw_schunk.srdf
   CONFIG:
-    generated_timestamp: 1392916100
+    generated_timestamp: 1393338129
