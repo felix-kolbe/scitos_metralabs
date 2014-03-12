@@ -2,22 +2,20 @@
   <name>scitos_metralabs</name>
   <version>0.0.0</version>
   <description>
-    ROS driver for the MetraLabs Scitos G5 mobile robot using the MetraLabs ABI.
+    ROS packages for the MetraLabs Scitos G5 mobile robot
   </description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <maintainer email="felix.kolbe@informatik.haw-hamburg.de">Felix Kolbe</maintainer>
 
   <!-- One license tag required, multiple allowed, one license per tag -->
-  <!-- Commonly used license strings: -->
-  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
   <license>GPL</license>
 
   <url type="website">http://wiki.ros.org/scitos_metralabs</url>
   <url type="repository">https://github.com/felix-kolbe/scitos_metralabs</url>
 
   <!-- Author tags are optional, mutiple are allowed, one per tag -->
-  <!-- Authors do not have to be maintianers, but could be -->
+  <!-- Authors do not have to be maintainers, but could be -->
   <!-- Example: -->
   <!-- <author email="jane.doe@example.com">Jane Doe</author> -->
   <author>Yianni Gatsoulis</author>
@@ -31,6 +29,7 @@
   <!-- Dependencies needed after this package is compiled. -->
   <run_depend>metralabs_msgs</run_depend>
   <run_depend>metralabs_ros</run_depend>
+  <run_depend>scitos_description</run_depend>
 
   <export>
     <metapackage/>

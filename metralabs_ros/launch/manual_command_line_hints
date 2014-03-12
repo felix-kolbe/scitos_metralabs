@@ -1,6 +1,6 @@
 
 # robot_description
-rosparam set -t  `rospack find metralabs_ros`/models/scitos_haw_only.urdf robot_description
+rosparam set -t  $(rospack find scitos_description)/models/scitos_haw_only.urdf robot_description
 
 # base wo arm with MDebug
 /home/demo/ros_workspace/stacks/scitos_metralabs/metralabs_ros/bin/ScitosServer  /joint_states:=/schunk/pre_mimic_joint_states __name:=metralabs_ros robot_arm_class:=None -MDebugLevel 5

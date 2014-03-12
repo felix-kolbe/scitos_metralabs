@@ -1,12 +1,12 @@
 <robot name="scitos_haw_schunk" xmlns:xacro="http://ros.org/wiki/xacro">
 
 <!-- Scitos and properties -->
-<xacro:include filename="$(find metralabs_ros)/models/xacro/scitos_haw_only.xacro" />
+<xacro:include filename="$(find scitos_description)/models/xacro/scitos_haw_only.xacro" />
 
 <!-- Links macros -->
-<xacro:include filename="$(find metralabs_ros)/models/xacro/scitos_haw_schunk_links.xacro" />
+<xacro:include filename="$(find scitos_description)/models/xacro/scitos_haw_schunk_links.xacro" />
 <!-- Joints macros -->
-<xacro:include filename="$(find metralabs_ros)/models/xacro/scitos_haw_schunk_joints.xacro" />
+<xacro:include filename="$(find scitos_description)/models/xacro/scitos_haw_schunk_joints.xacro" />
 
 
 <xacro:DH  name="arm_base_link"/><!-- base of arm -->
