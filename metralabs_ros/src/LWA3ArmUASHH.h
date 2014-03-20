@@ -47,9 +47,12 @@ public:
 		if(id == GRIPPER_ID) {
 			setAcceleration(id, 0.04); // set gripper acceleration
 			setVelocity(id, 0.04);	// and velocity to a nice value
+			return AmtecProtocolArm::refJoint(id);
+		} else {
+			ROS_WARN("Ignoring ref-command for non-gripper joint #%d,"
+					" bad things would happen on this manipulator!", id);
+			return ERR_NOT_SUPPORTED;
 		}
-
-		return AmtecProtocolArm::refJoint(id);
 	}
 
 };
