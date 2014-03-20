@@ -1,6 +1,6 @@
 <package>
 
-  <name>scitos_moveit_generated</name>
+  <name>scitos_moveit_config</name>
   <version>0.2.0</version>
   <description>
      An automatically generated package with all the configuration and launch files for using the scitos_haw_schunk with the MoveIt Motion Planning Framework
