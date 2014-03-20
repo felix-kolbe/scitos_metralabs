@@ -471,7 +471,7 @@ public:
 		init();
 	}
 
-	~SchunkServer() {
+	virtual ~SchunkServer() {
 		trajectory_executer_.stop();
 		trajectory_executer_thread_.interrupt();
 		trajectory_executer_thread_.join();
@@ -484,13 +484,12 @@ public:
 			AmtecManipulatorMod::StatusBits status, MTime last_update, bool is_running) {
 //		ROS_INFO("moduleStatusUpdate #%d % 2f % 2f %2f %X", id, pos, vel, current, status.value);
 		static MetraLabs::base::MTimeSpan joints_timeout(300);
-		static MetraLabs::base::MTimeSpan last_status_age;
 
 		MetraLabs::base::MTimeSpan status_age = MetraLabs::base::MTime::now() - last_update;
 		if(status_age > joints_timeout) {
-			ROS_WARN_STREAM("Joints status update too old! " << status_age.getTimeSpan()
-					<< " ms (thread is running: " << is_running << ")"); // Quitting..
-//			ROS_ERROR_STREM("Joints status was already ")
+			ROS_WARN_STREAM("Joints status update too old! joint: " << (int)id
+					<< " age: " << status_age.getTimeSpan() << "ms "
+					<< (is_running ? "(thread still running)" : "(thread not running!)"));
 //			ros::shutdown(); // FATAL does not cleanly shutdown the robot
 		}
 //		else
